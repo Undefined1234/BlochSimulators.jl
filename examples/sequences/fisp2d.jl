@@ -25,7 +25,7 @@ in one time step from the echo time to the start of the next RF excitation.
 struct FISP2D{T, Ns, U<:AbstractVector, V<:AbstractMatrix} <: EPGSimulator{T,Ns}
     RF_train::U
     sliceprofiles::V
-    TR::T
+    TR::T 
     TE::T
     max_state::Val{Ns}
     TI::T

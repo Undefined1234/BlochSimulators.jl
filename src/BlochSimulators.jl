@@ -55,7 +55,7 @@ module BlochSimulators
     # An EPG-based gradient-spoiled (FISP) sequence with variable flip angle train
     include("../examples/sequences/fisp2d.jl")
     include("../examples/sequences/fisp3d.jl")
-
+    include("../examples/sequences/fisp2db.jl")
     include("../examples/sequences/adiabatic.jl")
 
     # Informal interface for trajectory implementations. By convention,

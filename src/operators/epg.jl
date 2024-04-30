@@ -88,6 +88,17 @@ Set all components of all states to 0, except the Z-component of the 0th state w
     return nothing
 end
 
+"""
+    full_blood_compensation!()
+
+Set all F+ F- components to 0. This is used to simulate the effect of full blood compensation.
+"""
+@inline function full_blood_compensation!(Ω::EPGStates)
+    F₊(Ω) .= 0
+    F₋(Ω) .= 0
+    return nothing
+end
+
 # RF excitation
 
 """
@@ -269,6 +280,10 @@ The `+=` is needed for 2D sequences where slice profile is taken into account.
 """
 @inline function sample_transverse!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
     @inbounds output[index] += F₊(Ω)[0]
+end
+
+@inline function sample_transverse_conj!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
+    @inbounds output[index] += F₋(Ω)[0]
 end
 
 """
