@@ -7,13 +7,21 @@
 
 using BlochSimulators
 using ComputationalResources
+using MAT
+using Plots
 
-nTR = 1000; # nr of TRs used in the simulation
+
+nTR = 1120; # nr of TRs used in the simulation
 RF_train = LinRange(1,90,nTR) |> collect; # flip angle train
-TR,TE,TI= 0.010, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
+file = matopen("docs/examples/FA_insync.mat")
+RF_train = read(file, "fa") |> vec 
+close(file) 
+
+
+TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
 max_state = 25; # maximum number of configuration states to keep track of 
 H = 0.004; #Slice thickness in ??
-V = 0.0004; # Blood velocity in m/s
+V = 0.040; # Blood velocity in m/s
 
 sequence = FISP2DB(RF_train, TR, TE, max_state, TI, V, H);
 
@@ -33,11 +41,16 @@ println("Length parameters: $(length(parameters))")
 
 @time dictionary = simulate_magnetization(CPU1(), sequence, parameters);
 
-using Plots 
+ 
 x = 1:nTR;
 y = dictionary[:,1];
 
 
+super_title = "FISP2DB_With_Blood_Velocity_0_04"
+title_plot = title = plot(title = super_title, grid = false, showaxis = false, bottom_margin = -50Plots.px);
 plot1 = plot(x,y, xlabel="TR", ylabel="F+", title="Magnetization evolution");
 plot2 = plot(x, RF_train, xlabel="TR", ylabel="Flip angle", title="Flip angle train");
-plot(plot1, plot2, layout = (2,1), legend=false, size=(800,600))
+plot_combi = plot(title_plot, plot1, plot2, layout =  @layout([A{0.01h}; [B C]]), legend=false, size=(800, 600))
+
+
+savefig(plot_combi, string("C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/Data/", super_title, ".png"))

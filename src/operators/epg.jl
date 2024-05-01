@@ -92,10 +92,13 @@ end
     full_blood_compensation!()
 
 Set all F+ F- components to 0. This is used to simulate the effect of full blood compensation.
+This function is used in the FISP2DB sequence. Only if the blood passes the slice completely. 
+It is assumed that the signals from earlier blood are not measureable anymore and so the F+ and F- 
+components can be set to 0.
 """
 @inline function full_blood_compensation!(Ω::EPGStates)
     F₊(Ω) .= 0
-    F₋(Ω) .= 0
+    F̄₋(Ω) .= 0
     return nothing
 end
 

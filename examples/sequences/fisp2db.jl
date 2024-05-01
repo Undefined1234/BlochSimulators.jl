@@ -45,8 +45,12 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 
     T₁, T₂ = p.T₁, p.T₂
     TR, TE, TI, V, H = sequence.TR, sequence.TE, sequence.TI, sequence.V, sequence.H
-    ΔT = H/V #time blood needs to pass by slice completely 
-    N = round(ΔT/TR) #number of repetitions needed for blood to pass by completely
+    if V <= 0.0
+        N = Inf
+    else
+        ΔT = H/V #time blood needs to pass by slice completely 
+        N = Int(round(ΔT/TR)) #number of repetitions needed for blood to pass by completely
+    end
 
     E₁ᵀᴱ, E₂ᵀᴱ = E₁(Ω, TE, T₁),    E₂(Ω, TE, T₂)
     E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ = E₁(Ω, TR-TE, T₁), E₂(Ω, TR-TE, T₂)
@@ -81,6 +85,39 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
                 regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
                 # shift F states due to dephasing gradients
                 dephasing!(Ω)
+            end
+        end
+        return nothing
+    elseif N > 1 && N<Inf
+        println("TRs for complete blood cycle = " , N)
+        @inbounds for spc in eachcol(sequence.sliceprofiles)
+
+            initial_conditions!(Ω)
+
+            # apply inversion pulse
+            invert!(Ω)
+            decay!(Ω, E₁ᵀᴵ, E₂ᵀᴵ)
+            regrowth!(Ω, E₁ᵀᴵ)
+
+
+            for (TR,RF) in enumerate(sequence.RF_train)
+                kinit = maximum([1, TR - N])
+                kfin = TR 
+
+                for TR1 in kinit:kfin 
+                    # mix states
+                    excite!(Ω, spc[TR1]*RF, p)
+                    # T2 decay F states, T1 decay Z states, B0 rotation until TE
+                    rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
+                    regrowth!(Ω, E₁ᵀᴱ)
+                    # sample F₊[0]
+                    sample_transverse!(magnetization, TR, Ω)
+                    # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
+                    rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
+                    regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
+                    # shift F states due to dephasing gradients
+                    dephasing!(Ω)
+                end
             end
         end
         return nothing
