@@ -25,8 +25,8 @@ V = 0.040; # Blood velocity in m/s
 
 sequence = FISP2DB(RF_train, TR, TE, max_state, TI, V, H);
 
-T₁ = 1.5; # T₁ range 
-T₂ = 0.24; # T₂ range
+T₁ = .5:.5:1.5; # T₁ range 
+T₂ = .1:.05:0.24; # T₂ range
 
 parameters = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters = filter(p -> (p.T₁ > p.T₂), parameters); # remove pairs with T₂ ≤ T₁
@@ -43,12 +43,13 @@ println("Length parameters: $(length(parameters))")
 
  
 x = 1:nTR;
-y = dictionary[:,1];
+x_matrix = repeat(x, 1, length(parameters))
+y = dictionary;
 
 
 super_title = "FISP2DB_With_Blood_Velocity_0_04"
 title_plot = title = plot(title = super_title, grid = false, showaxis = false, bottom_margin = -50Plots.px);
-plot1 = plot(x,y, xlabel="TR", ylabel="F+", title="Magnetization evolution");
+plot1 = plot(x_matrix,y, xlabel="TR", ylabel="F+", title="Magnetization evolution");
 plot2 = plot(x, RF_train, xlabel="TR", ylabel="Flip angle", title="Flip angle train");
 plot_combi = plot(title_plot, plot1, plot2, layout =  @layout([A{0.01h}; [B C]]), legend=false, size=(800, 600))
 

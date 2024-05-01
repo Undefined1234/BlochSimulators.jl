@@ -60,7 +60,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
     eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾ = off_resonance_rotation(Ω, TR-TE, p)
 
     if N <= 1 # Case: on each repetition completely new blod
-        println("TRs for complete blood cycle = " , N)
+        println("N <= 1")
         @inbounds for spc in eachcol(sequence.sliceprofiles)
 
             initial_conditions!(Ω)
@@ -89,7 +89,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
         end
         return nothing
     elseif N > 1 && N<Inf
-        println("TRs for complete blood cycle = " , N)
+        println("N > 1 && N<Inf")
         @inbounds for spc in eachcol(sequence.sliceprofiles)
 
             initial_conditions!(Ω)
@@ -122,7 +122,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
         end
         return nothing
     else
-        println("TRs for complete blood cycle = " , N)
+        println("N=Inf")
         @inbounds for spc in eachcol(sequence.sliceprofiles)
 
             initial_conditions!(Ω)
