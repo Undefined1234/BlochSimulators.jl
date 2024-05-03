@@ -216,9 +216,10 @@ end
 T₁ regrowth compensation for Z-component in the 0th other of state. This compensation is applied if there is blood flow
 present. 
 """
-@inline function regrowth_comp!(Ω::EPGStates, f)
+@inline function regrowth_comp!(Ω::EPGStates, f, z)
     current = copy(Z(Ω)[0])
-    Z(Ω)[0] = (1-f)*current + f*1
+    if z>1 z=1 end #Z can't become larger than 1
+    Z(Ω)[0] = (1-f)*current + f*z
 end
 
 # Dephasing
