@@ -207,6 +207,18 @@ T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
     Z(Ω)[0] += (1 - E₁)
+    #println(Z(Ω)[0])
+end
+
+"""
+    regrowth!_comp(Ω, f)
+
+T₁ regrowth compensation for Z-component in the 0th other of state. This compensation is applied if there is blood flow
+present. 
+"""
+@inline function regrowth_comp!(Ω::EPGStates, f)
+    current = copy(Z(Ω)[0])
+    Z(Ω)[0] = (1-f)*current + f*1
 end
 
 # Dephasing

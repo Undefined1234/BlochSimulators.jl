@@ -5,6 +5,7 @@
 # In this example we demonstrate how to generate an MR Fingerprinting 
 # dictionary using a FISP type sequence
 
+using Revise
 using BlochSimulators
 using ComputationalResources
 using MAT
@@ -20,7 +21,7 @@ close(file)
 
 TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
 max_state = 25; # maximum number of configuration states to keep track of 
-H = 0.004; #Slice thickness in ??
+H = 0.004; #Slice thickness in m
 V = 0.040; # Blood velocity in m/s
 
 sequence = FISP2DB(RF_train, TR, TE, max_state, TI, V, H);
