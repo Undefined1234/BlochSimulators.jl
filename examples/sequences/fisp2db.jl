@@ -16,6 +16,7 @@ velocity of blood flow in axial direction is included.
 - `TI::T`: Inversion delay after the inversion prepulse in seconds
 - `v::T`:
 """
+
 struct FISP2DB{T, Ns, U<:AbstractVector, V<:AbstractMatrix} <: EPGSimulator{T,Ns}
     RF_train::U
     sliceprofiles::V
@@ -103,6 +104,12 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
             for (TR,RF) in enumerate(sequence.RF_train)
                 kinit = maximum([1, TR - N])
                 kfin = TR 
+
+                if (kinit == 1)
+                    initial_conditions!(Ω)
+                else 
+                    regrowth!(Ω, E₁ᵀᴵ)
+                end
 
                 for TR1 in kinit:kfin 
                     # mix states

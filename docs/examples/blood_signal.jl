@@ -39,7 +39,8 @@ println("Length parameters: $(length(parameters))")
 # a precompilation procedure starts and the runtime for subsequent function
 # calls are significantly faster
 
-@time dictionary = simulate_magnetization(CPU1(), sequence, parameters);
+println("Current number of threads: $(Threads.nthreads())")
+@time dictionary = simulate_magnetization(CPUThreads(), sequence, parameters);
 
  
 x = 1:nTR;
