@@ -9,7 +9,8 @@ for all threads within a block simultaneously. We then take a `@view` and wrap i
 Without the `SizedArray`, the type would be long and unreadable. By wrapping, we can then
 simply dispatch on a `SizedArray` instead.
 """
-const EPGStates = Union{MMatrix{3}, SizedMatrix{3}}
+const EPGStates = Union{MArray{Tuple{3, 25, 12}}, SizedArray{Tuple{3, 25, 12}}}
+
 
 """
     F₊(Ω)
@@ -17,21 +18,23 @@ const EPGStates = Union{MMatrix{3}, SizedMatrix{3}}
 View into the first row of the configuration state matrix `Ω`,
 corresponding to the `F₊` states.
 """
-F₊(Ω) = OffsetVector(view(Ω,1,:), 0:size(Ω,2)-1)
+F₊(Ω) = OffsetMatrix(view(Ω,1,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
+
+
 """
     F̄₋(Ω)
 
 View into the second row of the configuration state matrix `Ω`,
 corresponding to the `F̄₋` states.
 """
-F̄₋(Ω) = OffsetVector(view(Ω,2,:), 0:size(Ω,2)-1)
+F̄₋(Ω) = OffsetMatrix(view(Ω,2,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
 """
     Z(Ω)
 
 View into the third row of the configuration state matrix `Ω`,
 corresponding to the `Z` states.
 """
-Z(Ω) = OffsetVector(view(Ω,3,:), 0:size(Ω,2)-1)
+Z(Ω) = OffsetMatrix(view(Ω,3,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
 
 ## KERNELS ###
 
@@ -45,7 +48,7 @@ will only ever be real (no RF phase, no complex slice profile correction)
 and for these sequences a method needs to be added to this function.
 
 """
-@inline Ω_eltype(sequence::EPGSimulator{T,Ns}) where {T,Ns} = Complex{T}
+@inline Ω_eltype(sequence::EPGSimulator{T,Ns}) where {T,Ns} = Complex{T} 
 
 
 """
@@ -53,10 +56,12 @@ and for these sequences a method needs to be added to this function.
 
 Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulation.
 """
-@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}) where {T,Ns}
-    Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
+@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}, N) where {T,Ns}
+    #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
+    #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
+    println("N: ", N)
+    Ω = @MArray zeros(Ω_eltype(sequence),3,Ns,N)
 end
-
 """
     initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
 
@@ -84,7 +89,7 @@ Set all components of all states to 0, except the Z-component of the 0th state w
 """
 @inline function initial_conditions!(Ω::EPGStates)
     @. Ω = 0
-    Z(Ω)[0] = 1
+    Z(Ω)[0,:] .= 1
     return nothing
 end
 
@@ -139,7 +144,9 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     # assemble static matrix
     R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     # apply rotation matrix to each state
-    Ω .= R * Ω
+    for subvox = eachindex(Ω[1,1,:])
+        Ω[:,:,subvox] .= R * Ω
+    end
     return nothing
 end
 """
@@ -164,8 +171,9 @@ If RF is real, the calculations simplify (and probably Ω is real too, reducing 
     # assemble static matrix
     R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     # apply rotation matrix to each state
-    Ω .= R * Ω
-
+    for subvox = eachindex(Ω[1,1,:])
+        Ω[:,:,subvox] .= R * Ω
+    end
     return nothing
 end
 
@@ -175,7 +183,7 @@ end
 Rotate `F₊` and `F̄₋` states under the influence of `eⁱᶿ = exp(i * ΔB₀ * Δt)`
 """
 @inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where T
-    @. Ω[1:2,:] *= (eⁱᶿ,conj(eⁱᶿ))
+    @. Ω[1:2,:,:] *= (eⁱᶿ,conj(eⁱᶿ))
 end
 
 # Decay
@@ -186,7 +194,7 @@ end
 T₂ decay for F-components, T₁ decay for `Z`-component of each state.
 """
 @inline function decay!(Ω::EPGStates, E₁, E₂)
-    @. Ω *= (E₂, E₂, E₁)
+    @. Ω[:,:,:] *= (E₂, E₂, E₁)
 end
 
 """
@@ -195,7 +203,7 @@ end
 Rotate and decay combined
 """
 @inline function rotate_decay!(Ω::EPGStates, E₁, E₂, eⁱᶿ)
-    @. Ω *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), complex(E₁))
+    @. Ω[:,:,:] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), complex(E₁))
 end
 
 # Regrowth
@@ -206,21 +214,11 @@ end
 T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
-    Z(Ω)[0] += (1 - E₁)
+
+    Z(Ω)[0,:] .+= (1 - E₁)
     #println(Z(Ω)[0])
 end
 
-"""
-    regrowth!_comp(Ω, f)
-
-T₁ regrowth compensation for Z-component in the 0th other of state. This compensation is applied if there is blood flow
-present. 
-"""
-@inline function regrowth_comp!(Ω::EPGStates, f, z)
-    current = copy(Z(Ω)[0])
-    if z>1 z=1 end #Z can't become larger than 1
-    Z(Ω)[0] = (1-f)*current + f*z
-end
 
 # Dephasing
 
@@ -238,17 +236,17 @@ end
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
     for i = 0:lastindex(F̄₋)-1
-        @inbounds F̄₋[i] = F̄₋[i+1]
+        @inbounds F̄₋[i,:] .= F̄₋[i+1,:]
     end
-    @inbounds F̄₋[end] = 0
+    @inbounds F̄₋[end,:] .= 0
 end
 
 # shift up the F₊ states and let F₊[0] be conj(F₋[0])
 @inline function shift_up!(F₊, F̄₋)
-    for i = lastindex(F₊):-1:1
-        @inbounds F₊[i] = F₊[i-1]
+    for i = lastindex(F₊,:):-1:1
+        @inbounds F₊[i,:] .= F₊[i-1]
     end
-    @inbounds F₊[0] = conj(F̄₋[0])
+    @inbounds F₊[0,:] .= conj(F̄₋[0,:])
 end
 
 # Invert

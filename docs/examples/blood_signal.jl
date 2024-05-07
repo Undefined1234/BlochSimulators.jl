@@ -26,8 +26,8 @@ V = 0.040; # Blood velocity in m/s
 
 sequence = FISP2DB(RF_train, TR, TE, max_state, TI, V, H);
 
-T₁ = .5:.5:1.5; # T₁ range 
-T₂ = .1:.05:0.24; # T₂ range
+T₁ = 1:.5:1.5; # T₁ range 
+T₂ = 0.1:.05:0.24; # T₂ range
 
 parameters = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters = filter(p -> (p.T₁ > p.T₂), parameters); # remove pairs with T₂ ≤ T₁

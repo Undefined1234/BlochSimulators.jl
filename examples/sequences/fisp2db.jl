@@ -46,10 +46,8 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 
     T₁, T₂ = p.T₁, p.T₂
     TR, TE, TI, V, H = sequence.TR, sequence.TE, sequence.TI, sequence.V, sequence.H
-    
-    f = (V*TR)/H  #fraction of blood that passes by slice in one TR
-    println("Fraction: ", f)
-    if f > 1 f = 1 end #if fraction is larger than 1, set it to 1
+    L = V * TR #Travel distance for blood on each TR
+
 
 
     E₁ᵀᴱ, E₂ᵀᴱ = E₁(Ω, TE, T₁),    E₂(Ω, TE, T₂)
@@ -59,35 +57,35 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
     eⁱᴮ⁰⁽ᵀᴱ⁾ = off_resonance_rotation(Ω, TE, p)
     eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾ = off_resonance_rotation(Ω, TR-TE, p)
 
-    body_Z = 0.0;
     @inbounds for spc in eachcol(sequence.sliceprofiles)
 
         initial_conditions!(Ω)
-
+        println("Initial conditions")
         # apply inversion pulse
         invert!(Ω)
+        println("Invert")
         decay!(Ω, E₁ᵀᴵ, E₂ᵀᴵ)
+        println("Decay")
         regrowth!(Ω, E₁ᵀᴵ)
-        body_Z = copy(Z(Ω)[0]) #Variable which keeps track of the longitudinal magnitue in the whole body due to the inversion pulse
+        println("Regrow")
 
         for (TR,RF) in enumerate(sequence.RF_train)
 
-            # mix states
-            regrowth_comp!(Ω, f, body_Z) #placed right before excitation as new blod isn't affected by regrowth 
-            excite!(Ω, spc[TR]*RF, p)
-            # T2 decay F states, T1 decay Z states, B0 rotation until TE
-            rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
-            regrowth!(Ω, E₁ᵀᴱ)
-            body_Z += (1-E₁ᵀᴱ) #Update the longitudinal magnetization in the whole body
-            # sample F₊[0]
-            sample_transverse!(magnetization, TR, Ω)
-            # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
-            rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
-            regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
-            body_Z += (1-E₁ᵀᴿ⁻ᵀᴱ) #Update the longitudinal magnetization in the whole body
-            # shift F states due to dephasing gradients
-            dephasing!(Ω)
-
+                # mix states
+                excite!(Ω, spc[TR]*RF, p)
+                println("Excite")
+                
+                # T2 decay F states, T1 decay Z states, B0 rotation until TE
+                rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
+                println("Rotate")
+                regrowth!(Ω, E₁ᵀᴱ)            # sample F₊[0]
+                println("Regrow")
+                sample_transverse!(magnetization, TR, Ω)
+                # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
+                rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
+                regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
+                # shift F states due to dephasing gradients
+                dephasing!(Ω)
         end
     end
     return nothing
