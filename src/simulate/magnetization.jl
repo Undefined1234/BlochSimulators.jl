@@ -54,16 +54,12 @@ function simulate_magnetization(::CPUThreads, sequence, parameters)
     output = _allocate_output(CPUThreads(), sequence, parameters)
 
     # voxel dimension of output array
-    vd = length(size(output))
-    if sequence.V > 0.0
-        N = Int(ceil(sequence.H / (sequence.V*sequence.TR))) # Amount of TRs needed to travel completely through voxel
-    else 
-        N = 1
-    end
+    vd = length(size(output)) # Amount of TRs needed to travel completely through voxel
+
         # multi-threaded loop over voxels
     Threads.@threads for voxel ∈ eachindex(parameters)
         # initialize state that gets updated during time integration
-        state = initialize_states(CPUThreads(), sequence, N)
+        state = initialize_states(CPUThreads(), sequence)
         # run simulation for voxel
         simulate_magnetization!(selectdim(output, vd, voxel), sequence, state, parameters[voxel])
     end

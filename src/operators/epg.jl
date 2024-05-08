@@ -57,11 +57,15 @@ and for these sequences a method needs to be added to this function.
 
 Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulation.
 """
-@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}, N) where {T,Ns}
+
+
+@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T, Ns}) where {T,Ns}
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
+    N = Int(ceil(sequence.H / (sequence.Vᵦ*sequence.TR)))
     Ω = zeros(Ω_eltype(sequence),3,Ns,N)
 end
+
 """
     initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
 
@@ -327,12 +331,10 @@ end
 
 @inline function blood_shift!(Ω::EPGStates, z)
     if (z > 1) z = 1 end #Max 1 
-    if size(Ω,3) == 1 #If N is 1 skip function 
-        return nothing
-    end
     for i = lastindex(Ω,3):-1:1
         @inbounds Ω[:,:,i] .= Ω[:,:,i-1] #Move dimensions forward
     end
     Ω[:,:,1] .= 0 #Initialize new dimension
     Ω[3,1,1] = z #Initialize Z component new dimension
 end
+

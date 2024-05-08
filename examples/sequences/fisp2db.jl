@@ -24,9 +24,15 @@ struct FISP2DB{T, Ns, U<:AbstractVector, V<:AbstractMatrix} <: EPGSimulator{T,Ns
     TE::T
     max_state::Val{Ns}
     TI::T
-    V::T
+    Vᵦ::T
     H::T
 
+    function FISP2DB(RF_train::U, sliceprofiles::V, TR::T, TE::T, max_state::Val{Ns}, TI::T, Vᵦ::T, H::T) where {T, Ns, U<:AbstractVector,V<:AbstractMatrix}
+        if Vᵦ <= 0.0
+            error("For simulations with Velocity 0 please use FISP2D")
+        end
+        new{T, Ns, U, V}(RF_train, sliceprofiles, TR, TE, max_state, TI, Vᵦ, H)
+    end
     # TODO: maybe add inner construction which does some sanity checks
 end
 
@@ -45,8 +51,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 @inline function simulate_magnetization!(magnetization, sequence::FISP2DB, Ω, p::AbstractTissueParameters)
 
     T₁, T₂ = p.T₁, p.T₂
-    TR, TE, TI, V, H = sequence.TR, sequence.TE, sequence.TI, sequence.V, sequence.H
-    L = V * TR #Travel distance for blood on each TR
+    TR, TE, TI = sequence.TR, sequence.TE, sequence.TI
 
 
 
