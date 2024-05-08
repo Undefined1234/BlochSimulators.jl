@@ -9,7 +9,8 @@ for all threads within a block simultaneously. We then take a `@view` and wrap i
 Without the `SizedArray`, the type would be long and unreadable. By wrapping, we can then
 simply dispatch on a `SizedArray` instead.
 """
-const EPGStates = Union{MArray{Tuple{3, 25, 12}}, SizedArray{Tuple{3, 25, 12}}}
+#const EPGStates = Union{MArray{Tuple{3, 10, 4}}, SizedArray{Tuple{3, 10, 4}}}
+const EPGStates = Any
 
 
 """
@@ -59,8 +60,7 @@ Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulatio
 @inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}, N) where {T,Ns}
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
-    println("N: ", N)
-    Ω = @MArray zeros(Ω_eltype(sequence),3,Ns,N)
+    Ω = zeros(Ω_eltype(sequence),3,Ns,N)
 end
 """
     initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
@@ -142,10 +142,12 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     R₂₁, R₂₂, R₂₃ = ℯ⁻²ⁱᵠ * sin²x, cos²x, 1im * ℯ⁻ⁱᵠ * sinα #im gives issues with CUDA profiling, 1im works
     R₃₁, R₃₂, R₃₃ = -im * ℯ⁻ⁱᵠ * sinα / 2, 1im * ℯⁱᵠ * sinα / 2, cosα
     # assemble static matrix
-    R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
+    #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
+    R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
     for subvox = eachindex(Ω[1,1,:])
-        Ω[:,:,subvox] .= R * Ω
+        Ωₛ = @view Ω[:,:,subvox]
+        Ωₛ .= R * Ωₛ
     end
     return nothing
 end
@@ -169,10 +171,12 @@ If RF is real, the calculations simplify (and probably Ω is real too, reducing 
     R₂₁, R₂₂, R₂₃ = -sin²x, cos²x, -sinα
     R₃₁, R₃₂, R₃₃ = sinα / 2, sinα / 2, cosα
     # assemble static matrix
-    R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
+    #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
+    R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
     for subvox = eachindex(Ω[1,1,:])
-        Ω[:,:,subvox] .= R * Ω
+        Ωₛ = @view Ω[:,:,subvox]
+        Ωₛ .= R * Ωₛ
     end
     return nothing
 end
@@ -235,7 +239,7 @@ end
 
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
-    for i = 0:lastindex(F̄₋)-1
+    for i = 0:lastindex(F̄₋[:,0])-1
         @inbounds F̄₋[i,:] .= F̄₋[i+1,:]
     end
     @inbounds F̄₋[end,:] .= 0
@@ -243,12 +247,11 @@ end
 
 # shift up the F₊ states and let F₊[0] be conj(F₋[0])
 @inline function shift_up!(F₊, F̄₋)
-    for i = lastindex(F₊,:):-1:1
-        @inbounds F₊[i,:] .= F₊[i-1]
+    for i = lastindex(F₊[:,0]):-1:1
+        @inbounds F₊[i,:] .= F₊[i-1,:]
     end
     @inbounds F₊[0,:] .= conj(F̄₋[0,:])
 end
-
 # Invert
 
 """
@@ -299,6 +302,18 @@ end
 @inline function sample_transverse_conj!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
     @inbounds output[index] += F₋(Ω)[0]
 end
+"""
+    sample_transverse"_V2!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
+
+Sample the measurable transverse magnetization, that is, the `F₊` component of the 0th state.
+The `+=` is needed for 2D sequences where slice profile is taken into account.
+
+For blood flow sequences all F₊ states from the 0th order are summed and scaled by the
+partitioning amount (N)
+"""
+@inline function sample_transverse_V2!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
+    @inbounds output[index] += sum(F₊(Ω)[0,:])/size(Ω,3)
+end
 
 """
     sample_Ω!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
@@ -308,4 +323,16 @@ for 2D sequences where slice profile is taken into account.
 """
 @inline function sample_Ω!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
     @inbounds output[index] .+= Ω
+end
+
+@inline function blood_shift!(Ω::EPGStates, z)
+    if (z > 1) z = 1 end #Max 1 
+    if size(Ω,3) == 1 #If N is 1 skip function 
+        return nothing
+    end
+    for i = lastindex(Ω,3):-1:1
+        @inbounds Ω[:,:,i] .= Ω[:,:,i-1] #Move dimensions forward
+    end
+    Ω[:,:,1] .= 0 #Initialize new dimension
+    Ω[3,1,1] = z #Initialize Z component new dimension
 end

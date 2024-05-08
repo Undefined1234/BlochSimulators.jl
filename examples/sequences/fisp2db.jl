@@ -56,36 +56,32 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 
     eⁱᴮ⁰⁽ᵀᴱ⁾ = off_resonance_rotation(Ω, TE, p)
     eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾ = off_resonance_rotation(Ω, TR-TE, p)
-
+    z_body_track = 0.0 #keeps track of overall longitudinal magnetization due to inversion pulse
     @inbounds for spc in eachcol(sequence.sliceprofiles)
 
         initial_conditions!(Ω)
-        println("Initial conditions")
         # apply inversion pulse
         invert!(Ω)
-        println("Invert")
         decay!(Ω, E₁ᵀᴵ, E₂ᵀᴵ)
-        println("Decay")
         regrowth!(Ω, E₁ᵀᴵ)
-        println("Regrow")
+        z_body_track = Z(Ω)[0,0]
 
         for (TR,RF) in enumerate(sequence.RF_train)
 
                 # mix states
                 excite!(Ω, spc[TR]*RF, p)
-                println("Excite")
-                
-                # T2 decay F states, T1 decay Z states, B0 rotation until TE
+        #      # T2 decay F states, T1 decay Z states, B0 rotation until TE
                 rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
-                println("Rotate")
-                regrowth!(Ω, E₁ᵀᴱ)            # sample F₊[0]
-                println("Regrow")
-                sample_transverse!(magnetization, TR, Ω)
-                # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
+        #         regrowth!(Ω, E₁ᵀᴱ)            # sample F₊[0]
+                z_body_track += (1-E₁ᵀᴱ)
+                 sample_transverse_V2!(magnetization, TR, Ω)
+        #         # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
                 rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
                 regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
-                # shift F states due to dephasing gradients
+                z_body_track += (1-E₁ᵀᴿ⁻ᵀᴱ)
+        #        # shift F states due to dephasing gradients
                 dephasing!(Ω)
+                blood_shift!(Ω, z_body_track)
         end
     end
     return nothing

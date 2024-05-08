@@ -29,7 +29,7 @@ function simulate_magnetization(::CPU1, sequence, parameters)
     output = _allocate_output(CPU1(), sequence, parameters)
 
     # initialize state that gets updated during time integration
-    state = initialize_states(CPU1(), sequence)
+    state = initialize_states(CPU1(), sequence, 4)
     # voxel dimension of output array
     vd = length(size(output))
     # loop over voxels

@@ -14,20 +14,20 @@ using Plots
 
 nTR = 1120; # nr of TRs used in the simulation
 RF_train = LinRange(1,90,nTR) |> collect; # flip angle train
-file = matopen("docs/examples/FA_insync.mat")
-RF_train = read(file, "fa") |> vec 
-close(file) 
+# file = matopen("docs/examples/FA_insync.mat")
+# RF_train = read(file, "fa") |> vec 
+# close(file) 
 
 
 TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
-max_state = 25; # maximum number of configuration states to keep track of 
+max_state = 10; # maximum number of configuration states to keep track of 
 H = 0.004; #Slice thickness in m
-V = 0.040; # Blood velocity in m/s
+V = 0.0; # Blood velocity in m/s
 
 sequence = FISP2DB(RF_train, TR, TE, max_state, TI, V, H);
 
-T₁ = 1:.5:1.5; # T₁ range 
-T₂ = 0.1:.05:0.24; # T₂ range
+T₁ = 1:.1:1.5; # T₁ range 
+T₂ = 0.19:.01:0.24; # T₂ range
 
 parameters = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters = filter(p -> (p.T₁ > p.T₂), parameters); # remove pairs with T₂ ≤ T₁
@@ -49,7 +49,7 @@ x_matrix = repeat(x, 1, length(parameters))
 y = dictionary;
 
 
-super_title = "FISP2DB_With_Blood_Velocity_0_04"
+super_title = "FISP2DB_Without_Blood_Velocity_NewMethod"
 title_plot = title = plot(title = super_title, grid = false, showaxis = false, bottom_margin = -50Plots.px);
 plot1 = plot(x_matrix,y, xlabel="TR", ylabel="F+", title="Magnetization evolution");
 plot2 = plot(x, RF_train, xlabel="TR", ylabel="Flip angle", title="Flip angle train");
