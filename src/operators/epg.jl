@@ -62,9 +62,15 @@ Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulatio
 @inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T, Ns}) where {T,Ns}
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
-    N = Int(ceil(sequence.H / (sequence.Vᵦ*sequence.TR)))
+    if nameof(typeof(sequence)) == ":FISP2DB"
+        N = Int(ceil(sequence.H / (sequence.Vᵦ*sequence.TR)))
+    else
+        N = 1
+    end 
     Ω = zeros(Ω_eltype(sequence),3,Ns,N)
 end
+
+
 
 """
     initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
