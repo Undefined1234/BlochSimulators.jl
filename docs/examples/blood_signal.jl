@@ -25,7 +25,7 @@ H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
 Vb = 0.32;
 #sequence = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H);
- sequence = FISP2D(RF_train, TR, TE, max_state, TI)
+sequence = FISP2D(RF_train, TR, TE, max_state, TI)
 
 # T₁ = LinRange(1.584-0.005, 1.584+0.005, 10) |> collect; # T₁ range 
 # T₂ = LinRange(0.165-0.0032, 0.165+0.0032, 10) |> collect; # T₂ range
@@ -50,6 +50,7 @@ println("Current number of threads: $(Threads.nthreads())")
 x = 1:nTR;
 x_matrix = repeat(x, 1, length(parameters))
 y = dictionary;
+
 
 
 super_title = "FISP2DB_With_Blood_Velocity_NewMethod"
