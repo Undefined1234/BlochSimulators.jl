@@ -19,7 +19,7 @@ const EPGStates = Any
 View into the first row of the configuration state matrix `Ω`,
 corresponding to the `F₊` states.
 """
-F₊(Ω) = OffsetMatrix(view(Ω,1,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
+F₊(Ω) = view(Ω, 1, :, :)
 
 
 """
@@ -28,14 +28,14 @@ F₊(Ω) = OffsetMatrix(view(Ω,1,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
 View into the second row of the configuration state matrix `Ω`,
 corresponding to the `F̄₋` states.
 """
-F̄₋(Ω) = OffsetMatrix(view(Ω,2,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
+F̄₋(Ω) = view(Ω, 2, :, :)
 """
     Z(Ω)
 
 View into the third row of the configuration state matrix `Ω`,
 corresponding to the `Z` states.
 """
-Z(Ω) = OffsetMatrix(view(Ω,3,:,:), 0:size(Ω,2)-1, 0:size(Ω,3)-1)
+Z(Ω) = view(Ω, 3, :, :)
 
 ## KERNELS ###
 
@@ -49,7 +49,7 @@ will only ever be real (no RF phase, no complex slice profile correction)
 and for these sequences a method needs to be added to this function.
 
 """
-@inline Ω_eltype(sequence::EPGSimulator{T,Ns}) where {T,Ns} = Complex{T} 
+@inline Ω_eltype(sequence::EPGSimulator{T,Ns}) where {T,Ns} = Complex{T}
 
 
 """
@@ -59,11 +59,11 @@ Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulatio
 """
 
 
-@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T, Ns}) where {T,Ns}
+@inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}) where {T,Ns}
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
-    N = Int(ceil(sequence.H / (sequence.Vᵦ*sequence.TR)))
-    Ω = zeros(Ω_eltype(sequence),3,Ns,N)
+    N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+    Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
 end
 
 """
@@ -78,7 +78,7 @@ Initialize an array of EPG states on a CUDA GPU to be used throughout the simula
     # get view for configuration states of this thread's voxel
     # note that this function gets called inside a CUDA kernel
     # so it has has access to threadIdx
-    Ω_view = view(Ω_shared,:,:,threadIdx().x)
+    Ω_view = view(Ω_shared, :, :, threadIdx().x)
     # wrap in a SizedMatrix
     Ω = SizedMatrix{3,Ns}(Ω_view)
     return Ω
@@ -93,7 +93,7 @@ Set all components of all states to 0, except the Z-component of the 0th state w
 """
 @inline function initial_conditions!(Ω::EPGStates)
     @. Ω = 0
-    Z(Ω)[0,:] .= 1
+    @inbounds Z(Ω)[begin, :] .= 1
     return nothing
 end
 
@@ -119,7 +119,7 @@ end
 Mixing of states due to RF pulse. Magnitude of RF is the flip angle in degrees.
 Phase of RF is the phase of the pulse. If RF is real, the computations simplify a little bit.
 """
-@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where T<:Union{Complex, Quantity{<:Complex}}
+@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where {T<:Union{Complex,Quantity{<:Complex}}}
 
     # angle of RF pulse, convert from degrees to radians
     α = deg2rad(abs(RF))
@@ -127,19 +127,19 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     # phase of RF pulse
     φ = angle(RF)
 
-    x = α/2
+    x = α / 2
     sinx, cosx = sincos(x)
     sin²x, cos²x = sinx^2, cosx^2
     # double angle formula
-    sinα, cosα = 2*sinx*cosx, 2*cos²x - one(α)
+    sinα, cosα = 2 * sinx * cosx, 2 * cos²x - one(α)
     # phase stuff
     sinφ, cosφ = sincos(φ)
     # again double angle formula
-    sin2φ, cos2φ = 2*sinφ*cosφ, 2*cosφ^2 - one(α)
+    sin2φ, cos2φ = 2 * sinφ * cosφ, 2 * cosφ^2 - one(α)
     # complex exponentials
-    ℯⁱᵠ  = complex(cosφ,  sinφ)
+    ℯⁱᵠ = complex(cosφ, sinφ)
     ℯ²ⁱᵠ = complex(cos2φ, sin2φ)
-    ℯ⁻ⁱᵠ  = conj(ℯⁱᵠ)
+    ℯ⁻ⁱᵠ = conj(ℯⁱᵠ)
     ℯ⁻²ⁱᵠ = conj(ℯ²ⁱᵠ)
     # compute individual components of rotation matrix
     R₁₁, R₁₂, R₁₃ = cos²x, ℯ²ⁱᵠ * sin²x, -im * ℯⁱᵠ * sinα
@@ -147,11 +147,32 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     R₃₁, R₃₂, R₃₃ = -im * ℯ⁻ⁱᵠ * sinα / 2, 1im * ℯⁱᵠ * sinα / 2, cosα
     # assemble static matrix
     #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
-    R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
+    # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
-    for subvox = eachindex(Ω[1,1,:])
-        Ωₛ = @view Ω[:,:,subvox]
-        Ωₛ .= R * Ωₛ
+    for subvox in axes(Ω, 3)
+        Ωₛ = @view Ω[:, :, subvox]
+
+        tmp11 = R₁₁ * Ωₛ[1, 1] + R₁₂ * Ωₛ[2, 1] + R₁₃ * Ωₛ[3, 1]
+        tmp21 = R₂₁ * Ωₛ[1, 1] + R₂₂ * Ωₛ[2, 1] + R₂₃ * Ωₛ[3, 1]
+        tmp31 = R₃₁ * Ωₛ[1, 1] + R₃₂ * Ωₛ[2, 1] + R₃₃ * Ωₛ[3, 1]
+        tmp12 = R₁₁ * Ωₛ[1, 2] + R₁₂ * Ωₛ[2, 2] + R₁₃ * Ωₛ[3, 2]
+        tmp22 = R₂₁ * Ωₛ[1, 2] + R₂₂ * Ωₛ[2, 2] + R₂₃ * Ωₛ[3, 2]
+        tmp32 = R₃₁ * Ωₛ[1, 2] + R₃₂ * Ωₛ[2, 2] + R₃₃ * Ωₛ[3, 2]
+        tmp13 = R₁₁ * Ωₛ[1, 3] + R₁₂ * Ωₛ[2, 3] + R₁₃ * Ωₛ[3, 3]
+        tmp23 = R₂₁ * Ωₛ[1, 3] + R₂₂ * Ωₛ[2, 3] + R₂₃ * Ωₛ[3, 3]
+        tmp33 = R₃₁ * Ωₛ[1, 3] + R₃₂ * Ωₛ[2, 3] + R₃₃ * Ωₛ[3, 3]
+
+        # overwrite Ωₛ with the new values
+        Ωₛ[1, 1] = tmp11
+        Ωₛ[2, 1] = tmp21
+        Ωₛ[3, 1] = tmp31
+        Ωₛ[1, 2] = tmp12
+        Ωₛ[2, 2] = tmp22
+        Ωₛ[3, 2] = tmp32
+        Ωₛ[1, 3] = tmp13
+        Ωₛ[2, 3] = tmp23
+        Ωₛ[3, 3] = tmp33
+
     end
     return nothing
 end
@@ -160,27 +181,48 @@ end
 
 If RF is real, the calculations simplify (and probably Ω is real too, reducing memory (access) requirements).
 """
-@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where T<:Union{Real, Quantity{<:Real}}
+@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where {T<:Union{Real,Quantity{<:Real}}}
 
     # angle of RF pulse, convert from degrees to radians
     α = deg2rad(RF)
     hasB₁(p) && (α *= p.B₁)
-    x = α/2
+    x = α / 2
     sinx, cosx = sincos(x)
     sin²x, cos²x = sinx^2, cosx^2
     # double angle formula
-    sinα, cosα = 2*sinx*cosx, 2*cos²x - one(α)
+    sinα, cosα = 2 * sinx * cosx, 2 * cos²x - one(α)
     # compute individual components of rotation matrix
     R₁₁, R₁₂, R₁₃ = cos²x, -sin²x, -sinα
     R₂₁, R₂₂, R₂₃ = -sin²x, cos²x, -sinα
     R₃₁, R₃₂, R₃₃ = sinα / 2, sinα / 2, cosα
     # assemble static matrix
-    #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
-    R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
+    # R = SMatrix{3,3}(R₁₁, R₂₁, R₃₁, R₁₂, R₂₂, R₃₂, R₁₃, R₂₃, R₃₃)
+    # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
-    for subvox = eachindex(Ω[1,1,:])
-        Ωₛ = @view Ω[:,:,subvox]
-        Ωₛ .= R * Ωₛ
+    for subvox in axes(Ω, 3)
+        Ωₛ = @view Ω[:, :, subvox]
+
+        tmp11 = R₁₁ * Ωₛ[1, 1] + R₁₂ * Ωₛ[2, 1] + R₁₃ * Ωₛ[3, 1]
+        tmp21 = R₂₁ * Ωₛ[1, 1] + R₂₂ * Ωₛ[2, 1] + R₂₃ * Ωₛ[3, 1]
+        tmp31 = R₃₁ * Ωₛ[1, 1] + R₃₂ * Ωₛ[2, 1] + R₃₃ * Ωₛ[3, 1]
+        tmp12 = R₁₁ * Ωₛ[1, 2] + R₁₂ * Ωₛ[2, 2] + R₁₃ * Ωₛ[3, 2]
+        tmp22 = R₂₁ * Ωₛ[1, 2] + R₂₂ * Ωₛ[2, 2] + R₂₃ * Ωₛ[3, 2]
+        tmp32 = R₃₁ * Ωₛ[1, 2] + R₃₂ * Ωₛ[2, 2] + R₃₃ * Ωₛ[3, 2]
+        tmp13 = R₁₁ * Ωₛ[1, 3] + R₁₂ * Ωₛ[2, 3] + R₁₃ * Ωₛ[3, 3]
+        tmp23 = R₂₁ * Ωₛ[1, 3] + R₂₂ * Ωₛ[2, 3] + R₂₃ * Ωₛ[3, 3]
+        tmp33 = R₃₁ * Ωₛ[1, 3] + R₃₂ * Ωₛ[2, 3] + R₃₃ * Ωₛ[3, 3]
+
+        # overwrite Ωₛ with the new values
+        Ωₛ[1, 1] = tmp11
+        Ωₛ[2, 1] = tmp21
+        Ωₛ[3, 1] = tmp31
+        Ωₛ[1, 2] = tmp12
+        Ωₛ[2, 2] = tmp22
+        Ωₛ[3, 2] = tmp32
+        Ωₛ[1, 3] = tmp13
+        Ωₛ[2, 3] = tmp23
+        Ωₛ[3, 3] = tmp33
+
     end
     return nothing
 end
@@ -190,8 +232,8 @@ end
 
 Rotate `F₊` and `F̄₋` states under the influence of `eⁱᶿ = exp(i * ΔB₀ * Δt)`
 """
-@inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where T
-    @. Ω[1:2,:,:] *= (eⁱᶿ,conj(eⁱᶿ))
+@inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where {T}
+    @. Ω[1:2, :, :] *= (eⁱᶿ, conj(eⁱᶿ))
 end
 
 # Decay
@@ -202,7 +244,7 @@ end
 T₂ decay for F-components, T₁ decay for `Z`-component of each state.
 """
 @inline function decay!(Ω::EPGStates, E₁, E₂)
-    @. Ω[:,:,:] *= (E₂, E₂, E₁)
+    Ω .*= (E₂, E₂, E₁)
 end
 
 """
@@ -211,7 +253,10 @@ end
 Rotate and decay combined
 """
 @inline function rotate_decay!(Ω::EPGStates, E₁, E₂, eⁱᶿ)
-    @. Ω[:,:,:] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), complex(E₁))
+
+    F₊(Ω) .*= E₂ * eⁱᶿ
+    F̄₋(Ω) .*= E₂ * conj(eⁱᶿ)
+    Z(Ω) .*= E₁
 end
 
 # Regrowth
@@ -223,8 +268,10 @@ T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
 
-    Z(Ω)[0,:] .+= (1 - E₁)
-    #println(Z(Ω)[0])
+    Ωᶻ = Z(Ω)
+    for i = axes(Ω, 3)
+        @inbounds Ωᶻ[begin, i] += (1 - E₁)
+    end
 end
 
 
@@ -243,18 +290,30 @@ end
 
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
-    for i = 0:lastindex(F̄₋[:,0])-1
-        @inbounds F̄₋[i,:] .= F̄₋[i+1,:]
+
+    for i = 1:size(F̄₋, 1)-1
+        for j in 1:size(F̄₋, 2)
+            @inbounds F̄₋[i, j] = F̄₋[i+1, j]
+        end
     end
-    @inbounds F̄₋[end,:] .= 0
+
+    for j in 1:size(F̄₋, 2)
+        @inbounds F̄₋[end, j] = 0
+    end
 end
 
 # shift up the F₊ states and let F₊[0] be conj(F₋[0])
 @inline function shift_up!(F₊, F̄₋)
-    for i = lastindex(F₊[:,0]):-1:1
-        @inbounds F₊[i,:] .= F₊[i-1,:]
+
+    for i = size(F₊, 1):-1:2
+        for j in 1:size(F₊, 2)
+            @inbounds F₊[i, j] = F₊[i-1, j]
+        end
     end
-    @inbounds F₊[0,:] .= conj(F̄₋[0,:])
+
+    for j in 1:size(F₊, 2)
+        @inbounds F₊[1, j] = conj(F̄₋[1, j])
+    end
 end
 # Invert
 
@@ -316,7 +375,7 @@ For blood flow sequences all F₊ states from the 0th order are summed and scale
 partitioning amount (N)
 """
 @inline function sample_transverse_V2!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
-    @inbounds output[index] += sum(F₊(Ω)[0,:])/size(Ω,3)
+    @inbounds output[index] += sum((@view F₊(Ω)[1, :])) / size(Ω, 3)
 end
 
 """
@@ -330,11 +389,29 @@ for 2D sequences where slice profile is taken into account.
 end
 
 @inline function blood_shift!(Ω::EPGStates, z)
-    if (z > 1) z = 1 end #Max 1 
-    for i = lastindex(Ω,3):-1:1
-        @inbounds Ω[:,:,i] .= Ω[:,:,i-1] #Move dimensions forward
+
+    z = min(z, 1)
+    for s = lastindex(Ω, 3):-1:2
+
+        for i in axes(Ω, 1)
+            for j in axes(Ω, 2)
+                @inbounds Ω[i, j, s] = Ω[i, j, s-1]
+            end
+        end
+
+        # @inbounds Ω[:, :, i] .= Ω[:, :, i-1] #Move dimensions forward
+        # (@view Ω[:, :, i]) .= (@view Ω[:, :, i-1])
     end
-    Ω[:,:,1] .= 0 #Initialize new dimension
-    Ω[3,1,1] = z #Initialize Z component new dimension
+
+    # Initialize new dimension
+    # Ω[:, :, 1] .= 0 
+    for i in axes(Ω, 1)
+        for j in axes(Ω, 2)
+            @inbounds Ω[i, j, 1] = 0
+        end
+    end
+
+    # Initialize Z component new dimension
+    Ω[3, 1, 1] = z
 end
 

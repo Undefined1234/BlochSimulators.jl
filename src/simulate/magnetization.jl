@@ -29,7 +29,7 @@ function simulate_magnetization(::CPU1, sequence, parameters)
     output = _allocate_output(CPU1(), sequence, parameters)
 
     # initialize state that gets updated during time integration
-    state = initialize_states(CPU1(), sequence, 4)
+    state = initialize_states(CPU1(), sequence)
     # voxel dimension of output array
     vd = length(size(output))
     # loop over voxels
@@ -56,7 +56,7 @@ function simulate_magnetization(::CPUThreads, sequence, parameters)
     # voxel dimension of output array
     vd = length(size(output)) # Amount of TRs needed to travel completely through voxel
 
-        # multi-threaded loop over voxels
+    # multi-threaded loop over voxels
     Threads.@threads for voxel ∈ eachindex(parameters)
         # initialize state that gets updated during time integration
         state = initialize_states(CPUThreads(), sequence)
@@ -91,7 +91,17 @@ simulate_magnetization(resource::CPUProcesses, sequence, parameters) = simulate_
 Perform simulations on NVIDIA GPU hardware by making use of the [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) package.
 Each thread perform Bloch simulations for a single entry of the `parameters` array.
 """
-function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray)
+function simulate_magnetization(::CUDALibs, sequence::EPGSimulator{T,Ns}, parameters::CuArray) where {T,Ns}
+
+    N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+    num_voxels = length(parameters)
+    states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)
+
+
+    return simulate_magnetization(CUDALibs(), sequence, parameters, states)
+end
+
+function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray, states)
 
     # intialize array to store magnetization for each voxel
     output = _allocate_output(CUDALibs(), sequence, parameters)
@@ -108,11 +118,13 @@ function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray)
         voxel = (blockIdx().x - 1) * blockDim().x + threadIdx().x
 
         # initialize state that gets updated during time integration
-        states = initialize_states(CUDALibs(), sequence)
-
+        # states = initialize_states(CUDALibs(), sequence)
         if voxel <= length(parameters)
-            # run simulation for voxel
-            simulate_magnetization!(view(output,:,voxel), sequence, states, parameters[voxel])
+            Ω = view(states, :, :, :, voxel)
+            # @inbounds Ω = states[voxels]
+
+            #     # run simulation for voxel
+            simulate_magnetization!(view(output, :, voxel), sequence, Ω, parameters[voxel])
         end
 
         return nothing
@@ -120,7 +132,7 @@ function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray)
 
     # launch kernels
     CUDA.@sync begin
-        @cuda blocks=nr_blocks threads=THREADS_PER_BLOCK magnetization_kernel!(output, sequence, parameters)
+        @cuda blocks = nr_blocks threads = THREADS_PER_BLOCK magnetization_kernel!(output, sequence, parameters)
     end
 
     return output

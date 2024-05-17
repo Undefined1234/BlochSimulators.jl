@@ -13,7 +13,7 @@ using Plots
 
 
 nTR = 1120; # nr of TRs used in the simulation
-RF_train = LinRange(1,90,nTR) |> collect; # flip angle train
+RF_train = complex.(LinRange(1, 90, nTR)) |> collect; # flip angle train
 # file = matopen("docs/examples/FA_insync.mat")
 # RF_train = read(file, "fa") |> vec 
 # close(file) 
