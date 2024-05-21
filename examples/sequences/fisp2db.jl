@@ -79,7 +79,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
                 rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
         #         regrowth!(Ω, E₁ᵀᴱ)            # sample F₊[0]
                 z_body_track += (1-E₁ᵀᴱ)
-                 sample_transverse_V2!(magnetization, TR, Ω)
+                sample_transverse_V2!(magnetization, TR, Ω)
         #         # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
                 rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
                 regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
