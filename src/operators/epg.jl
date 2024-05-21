@@ -63,8 +63,10 @@ Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulatio
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
     if nameof(typeof(sequence)) == ":FISP2DB"
+        println("FISP2DB sequence")
         N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
     else
+        println("FISP2D sequence")
         N = 1
     end
     Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
@@ -80,6 +82,7 @@ Initialize an array of EPG states on a CUDA GPU to be used throughout the simula
 @inline function initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
     # request shared memory in which configuration states are stored
     # (all threads request for the entire threadblock)
+
     Ω_shared = CUDA.CuStaticSharedArray(Ω_eltype(sequence), (3, Ns, THREADS_PER_BLOCK))
     # get view for configuration states of this thread's voxel
     # note that this function gets called inside a CUDA kernel

@@ -33,8 +33,15 @@ parameters_blood = filter(p -> (p.T₁ > p.T₂), parameters_blood); # remove pa
 
 println("Length parameters: $(length(parameters_blood))")
 
-println("Current number of threads: $(Threads.nthreads())")
-@time blood_sim = simulate_magnetization(CPUThreads(), sequence_blood, parameters_blood);
+cu_sequence_blood = sequence_blood |> f32 |> gpu;
+cu_parameters_blood = parameters_blood |> f32 |> gpu;
+
+# Remember, the first time a compilation procedure takes place which, especially
+# on GPU, can take some time.
+println("Active CUDA device:"); BlochSimulators.CUDA.device()
+
+@time blood_sim = simulate_magnetization(CUDALibs(), cu_sequence_blood, cu_parameters_blood);
+# Call the pre-compiled version
 
 #Creating dictionary with old FISP2D sequence
 #
@@ -48,8 +55,15 @@ parameters = filter(p -> (p.T₁ > p.T₂), parameters); # remove pairs with T�
 
 println("Length parameters: $(length(parameters))")
 
-println("Current number of threads: $(Threads.nthreads())")
-@time dictionary = simulate_magnetization(CPUThreads(), sequence, parameters);
+cu_sequence = sequence |> f32 |> gpu;
+cu_parameters = parameters |> f32 |> gpu;
+
+# Remember, the first time a compilation procedure takes place which, especially
+# on GPU, can take some time.
+println("Active CUDA device:"); BlochSimulators.CUDA.device()
+
+@time dictionary = simulate_magnetization(CUDALibs(), cu_sequence, cu_parameters);
+# Call the pre-compiled version
 
 
 #Evaluation 

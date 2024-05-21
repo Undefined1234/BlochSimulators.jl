@@ -93,7 +93,13 @@ Each thread perform Bloch simulations for a single entry of the `parameters` arr
 """
 function simulate_magnetization(::CUDALibs, sequence::EPGSimulator{T,Ns}, parameters::CuArray) where {T,Ns}
 
-    N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+    if nameof(typeof(sequence)) == ":FISP2DB"
+        println("FISP2DB sequence")
+        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+    else
+        println("FISP2D sequence")
+        N = 1
+    end
     num_voxels = length(parameters)
     states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)
 
