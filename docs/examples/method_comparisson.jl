@@ -22,7 +22,7 @@ TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, b
 max_state = 10; # maximum number of configuration states to keep track of 
 H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
-Vb = 0.32;
+Vb = 0.032;
 sequence_blood = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
 
 T₁ = 1.584 #exact T1 value for blood
@@ -72,6 +72,7 @@ println("Active CUDA device:"); BlochSimulators.CUDA.device()
 x = 1:nTR;
 y_blood = blood_sim;
 y_sim = dictionary;
+L2 = sqrt(sum((y_blood .- y_sim).^2))
 plot1 = plot(x, [y_blood y_sim], labels=["Blood" "Simulation"])
-println("Max correlation: $val with T1: $T1 ms and T2: $T2 ms")
-savefig(plot1, "C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/GPU.png")
+println("Max correlation: $L2 with T1: $T1 ms and T2: $T2 ms")
+# savefig(plot1, "C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/GPU.png")
