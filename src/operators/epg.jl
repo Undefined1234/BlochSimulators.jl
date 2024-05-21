@@ -346,7 +346,7 @@ end
 @inline function blood_shift!(Ω::EPGStates, z)
     z = min(z,1)
     for i = lastindex(Ω,3):-1:2
-        @inbounds Ω[:,:,i] .= Ω[:,:,i-1] #Move dimensions forward
+        Ω[:,:,i] .= Ω[:,:,i-1] #Move dimensions forward
     end
     Ω[:,:,1] .= 0 #Initialize new dimension
     Ω[3,1,1] = z #Initialize Z component new dimension
