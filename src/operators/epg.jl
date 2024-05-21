@@ -287,7 +287,7 @@ end
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
 
-    for i = 1:size(F̄₋, 1)-1
+    for i = 1:size(F̄₋, 1)
         for j in 1:size(F̄₋, 2)
             @inbounds F̄₋[i, j] = F̄₋[i+1, j]
         end
