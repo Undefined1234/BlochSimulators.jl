@@ -99,7 +99,6 @@ function simulate_magnetization(::CUDALibs, sequence::EPGSimulator{T,Ns}, parame
         states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)
         return simulate_magnetization(CUDALibs(), sequence, parameters, states)
     catch  
-        println("H was not found, N set to 1 automatically")
         N = 1 
         num_voxels = length(parameters)
         states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)

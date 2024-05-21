@@ -84,7 +84,6 @@ Initialize an array of EPG states on a CUDA GPU to be used throughout the simula
     try 
         N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR))) 
     catch  
-        println("H was not found, N set to 1 automatically")
         N = 1 
     end
 
