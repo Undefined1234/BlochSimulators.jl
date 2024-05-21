@@ -217,7 +217,7 @@ end
 Rotate and decay combined
 """
 @inline function rotate_decay!(Ω::EPGStates, E₁, E₂, eⁱᶿ)
-    @. Ω[:,:,:] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), complex(E₁))
+    @. Ω[:,:,:] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), E₁)
 end
 
 # Regrowth
@@ -249,18 +249,26 @@ end
 
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
-    for i = 0:lastindex(F̄₋[:,0])-1
-        @inbounds F̄₋[i,:] .= F̄₋[i+1,:]
+    for j in 0:size(F̄₋,2)-1
+        for i = 0:lastindex(F̄₋[:,j])-1
+            @inbounds F̄₋[i,j] = F̄₋[i+1,j]
+        end
     end
-    @inbounds F̄₋[end,:] .= 0
+    for j in 0:size(F̄₋,2)-1
+        @inbounds F̄₋[end,j] = 0
+    end 
 end
 
 # shift up the F₊ states and let F₊[0] be conj(F₋[0])
 @inline function shift_up!(F₊, F̄₋)
-    for i = lastindex(F₊[:,0]):-1:1
-        @inbounds F₊[i,:] .= F₊[i-1,:]
+    for j in 0:size(F₊,2)-1
+        for i = lastindex(F₊[:,0]):-1:1
+            @inbounds F₊[i,j] = F₊[i-1,j]
+        end
     end
-    @inbounds F₊[0,:] .= conj(F̄₋[0,:])
+    for j in 0:size(F₊,2)-1
+        @inbounds F₊[0,j] = conj(F̄₋[0,j])
+    end
 end
 # Invert
 
