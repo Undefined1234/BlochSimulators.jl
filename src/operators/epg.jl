@@ -80,6 +80,14 @@ end
 Initialize an array of EPG states on a CUDA GPU to be used throughout the simulation.
 """
 @inline function initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
+
+    if nameof(typeof(sequence)) == ":FISP2DB"
+        println("FISP2DB sequence CUDA")
+        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+    else
+        println("FISP2D sequence CUDA")
+        N = 1
+    end
     # request shared memory in which configuration states are stored
     # (all threads request for the entire threadblock)
 
@@ -89,7 +97,8 @@ Initialize an array of EPG states on a CUDA GPU to be used throughout the simula
     # so it has has access to threadIdx
     Ω_view = view(Ω_shared, :, :, threadIdx().x)
     # wrap in a SizedMatrix
-    Ω = SizedMatrix{3,Ns}(Ω_view)
+    Ω = SizedMatrix{3,Ns,N}(Ω_view)
+    println("Matrix size, ", size(Ω))
     return Ω
 end
 
@@ -159,29 +168,18 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
     for subvox in axes(Ω, 3)
-        Ωₛ = @view Ω[:, :, subvox]
+        for col in axes(Ω, 2)
+            Ωₛ = @view Ω[:, col, subvox]
 
-        tmp11 = R₁₁ * Ωₛ[1, 1] + R₁₂ * Ωₛ[2, 1] + R₁₃ * Ωₛ[3, 1]
-        tmp21 = R₂₁ * Ωₛ[1, 1] + R₂₂ * Ωₛ[2, 1] + R₂₃ * Ωₛ[3, 1]
-        tmp31 = R₃₁ * Ωₛ[1, 1] + R₃₂ * Ωₛ[2, 1] + R₃₃ * Ωₛ[3, 1]
-        tmp12 = R₁₁ * Ωₛ[1, 2] + R₁₂ * Ωₛ[2, 2] + R₁₃ * Ωₛ[3, 2]
-        tmp22 = R₂₁ * Ωₛ[1, 2] + R₂₂ * Ωₛ[2, 2] + R₂₃ * Ωₛ[3, 2]
-        tmp32 = R₃₁ * Ωₛ[1, 2] + R₃₂ * Ωₛ[2, 2] + R₃₃ * Ωₛ[3, 2]
-        tmp13 = R₁₁ * Ωₛ[1, 3] + R₁₂ * Ωₛ[2, 3] + R₁₃ * Ωₛ[3, 3]
-        tmp23 = R₂₁ * Ωₛ[1, 3] + R₂₂ * Ωₛ[2, 3] + R₂₃ * Ωₛ[3, 3]
-        tmp33 = R₃₁ * Ωₛ[1, 3] + R₃₂ * Ωₛ[2, 3] + R₃₃ * Ωₛ[3, 3]
+            tmp11 = R₁₁ * Ωₛ[1] + R₁₂ * Ωₛ[2] + R₁₃ * Ωₛ[3]
+            tmp21 = R₂₁ * Ωₛ[1] + R₂₂ * Ωₛ[2] + R₂₃ * Ωₛ[3]
+            tmp31 = R₃₁ * Ωₛ[1] + R₃₂ * Ωₛ[2] + R₃₃ * Ωₛ[3]
 
-        # overwrite Ωₛ with the new values
-        Ωₛ[1, 1] = tmp11
-        Ωₛ[2, 1] = tmp21
-        Ωₛ[3, 1] = tmp31
-        Ωₛ[1, 2] = tmp12
-        Ωₛ[2, 2] = tmp22
-        Ωₛ[3, 2] = tmp32
-        Ωₛ[1, 3] = tmp13
-        Ωₛ[2, 3] = tmp23
-        Ωₛ[3, 3] = tmp33
-
+            # overwrite Ωₛ with the new values
+            Ωₛ[1] = tmp11
+            Ωₛ[2] = tmp21
+            Ωₛ[3] = tmp31
+        end 
     end
     return nothing
 end
@@ -209,29 +207,18 @@ If RF is real, the calculations simplify (and probably Ω is real too, reducing 
     # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
     for subvox in axes(Ω, 3)
-        Ωₛ = @view Ω[:, :, subvox]
+        for col in axes(Ω, 2)
+            Ωₛ = @view Ω[:, col, subvox]
 
-        tmp11 = R₁₁ * Ωₛ[1, 1] + R₁₂ * Ωₛ[2, 1] + R₁₃ * Ωₛ[3, 1]
-        tmp21 = R₂₁ * Ωₛ[1, 1] + R₂₂ * Ωₛ[2, 1] + R₂₃ * Ωₛ[3, 1]
-        tmp31 = R₃₁ * Ωₛ[1, 1] + R₃₂ * Ωₛ[2, 1] + R₃₃ * Ωₛ[3, 1]
-        tmp12 = R₁₁ * Ωₛ[1, 2] + R₁₂ * Ωₛ[2, 2] + R₁₃ * Ωₛ[3, 2]
-        tmp22 = R₂₁ * Ωₛ[1, 2] + R₂₂ * Ωₛ[2, 2] + R₂₃ * Ωₛ[3, 2]
-        tmp32 = R₃₁ * Ωₛ[1, 2] + R₃₂ * Ωₛ[2, 2] + R₃₃ * Ωₛ[3, 2]
-        tmp13 = R₁₁ * Ωₛ[1, 3] + R₁₂ * Ωₛ[2, 3] + R₁₃ * Ωₛ[3, 3]
-        tmp23 = R₂₁ * Ωₛ[1, 3] + R₂₂ * Ωₛ[2, 3] + R₂₃ * Ωₛ[3, 3]
-        tmp33 = R₃₁ * Ωₛ[1, 3] + R₃₂ * Ωₛ[2, 3] + R₃₃ * Ωₛ[3, 3]
+            tmp11 = R₁₁ * Ωₛ[1] + R₁₂ * Ωₛ[2] + R₁₃ * Ωₛ[3]
+            tmp21 = R₂₁ * Ωₛ[1] + R₂₂ * Ωₛ[2] + R₂₃ * Ωₛ[3]
+            tmp31 = R₃₁ * Ωₛ[1] + R₃₂ * Ωₛ[2] + R₃₃ * Ωₛ[3]
 
-        # overwrite Ωₛ with the new values
-        Ωₛ[1, 1] = tmp11
-        Ωₛ[2, 1] = tmp21
-        Ωₛ[3, 1] = tmp31
-        Ωₛ[1, 2] = tmp12
-        Ωₛ[2, 2] = tmp22
-        Ωₛ[3, 2] = tmp32
-        Ωₛ[1, 3] = tmp13
-        Ωₛ[2, 3] = tmp23
-        Ωₛ[3, 3] = tmp33
-
+            # overwrite Ωₛ with the new values
+            Ωₛ[1] = tmp11
+            Ωₛ[2] = tmp21
+            Ωₛ[3] = tmp31
+        end 
     end
     return nothing
 end

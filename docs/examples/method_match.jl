@@ -70,7 +70,7 @@ println("Active CUDA device:"); BlochSimulators.CUDA.device()
 #
 evaluation = zeros(size(dictionary)[2]);
 for i in 1:size(dictionary)[2]
-    evaluation[i] = L2dist(blood_sim, dictionary[:,i]);
+    evaluation[i] = sqrt(sum((blood_sim - dictionary[:,i]).^2));
 end
 val, index = findmin(evaluation)
 T1 = parameters[index[1]][1]*1000
