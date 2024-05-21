@@ -155,7 +155,7 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
-    for subvox = eachindex(Ω[1,1,:])
+    for subvox = 1:size(Ω,3)
         Ωₛ = @view Ω[:,:,subvox]
         Ωₛ .= R * Ωₛ
     end
@@ -184,7 +184,7 @@ If RF is real, the calculations simplify (and probably Ω is real too, reducing 
     #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
     # apply rotation matrix to each state
-    for subvox = eachindex(Ω[1,1,:])
+    for subvox = 1:size(Ω,3)
         Ωₛ = @view Ω[:,:,subvox]
         Ωₛ .= R * Ωₛ
     end
@@ -197,7 +197,9 @@ end
 Rotate `F₊` and `F̄₋` states under the influence of `eⁱᶿ = exp(i * ΔB₀ * Δt)`
 """
 @inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where T
-    @. Ω[1:2,:,:] *= (eⁱᶿ,conj(eⁱᶿ))
+    for i in 1:size(Ω,3)
+        @. Ω[1:2,:,i] *= (eⁱᶿ,conj(eⁱᶿ))
+    end
 end
 
 # Decay
@@ -208,7 +210,9 @@ end
 T₂ decay for F-components, T₁ decay for `Z`-component of each state.
 """
 @inline function decay!(Ω::EPGStates, E₁, E₂)
-    @. Ω[:,:,:] *= (E₂, E₂, E₁)
+    for i in 1:size(Ω,3)
+        @. Ω[:,:,i] *= (E₂, E₂, E₁)
+    end
 end
 
 """
@@ -217,7 +221,9 @@ end
 Rotate and decay combined
 """
 @inline function rotate_decay!(Ω::EPGStates, E₁, E₂, eⁱᶿ)
-    @. Ω[:,:,:] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), E₁)
+    for i in 1:size(Ω,3)
+        @. Ω[:,:,i] *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), E₁)
+    end
 end
 
 # Regrowth
@@ -228,8 +234,10 @@ end
 T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
+    for i in 1:size(Ω,3)
+        Z(Ω)[0,:] .+= (1 - E₁)
+    end
 
-    Z(Ω)[0,:] .+= (1 - E₁)
     #println(Z(Ω)[0])
 end
 
