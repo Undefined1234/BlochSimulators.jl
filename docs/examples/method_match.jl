@@ -79,5 +79,6 @@ T2 = parameters[index[1]][2]*1000
 x = 1:nTR;
 y_blood = blood_sim;
 y_sim = dictionary[:,index[1]];
-plot1 = plot(x, [y_blood y_sim], labels=["Blood" "Simulation"])
+plot1 = plot(x, [y_blood y_sim], labels=["Blood" "Simulation"], ylims=(-1,0.25))
 println("Max correlation: $val with T1: $T1 ms and T2: $T2 ms")
+savefig(plot1, "C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/GPU.png")
