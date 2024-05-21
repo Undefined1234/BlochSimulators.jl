@@ -234,10 +234,9 @@ end
 T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
-    for i in 1:size(Ω,3)
-        Z(Ω)[0,:] .+= (1 - E₁)
+    for i in 0:size(Ω,3)-1
+        Z(Ω)[0,i] += (1 - E₁)
     end
-
     #println(Z(Ω)[0])
 end
 
