@@ -22,7 +22,7 @@ TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, b
 max_state = 10; # maximum number of configuration states to keep track of 
 H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
-Vb = 0.000000000032;
+Vb = 0.32;
 sequence_blood = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
 
 T₁ = 1.584 #exact T1 value for blood

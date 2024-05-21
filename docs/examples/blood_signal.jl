@@ -13,19 +13,19 @@ using Plots
 
 
 nTR = 1120; # nr of TRs used in the simulation
-RF_train = complex.(LinRange(1, 90, nTR)) |> collect; # flip angle train
-# file = matopen("docs/examples/FA_insync.mat")
-# RF_train = read(file, "fa") |> vec 
-# close(file) 
+# RF_train = complex.(LinRange(1, 90, nTR)) |> collect; # flip angle train
+file = matopen("docs/examples/FA_insync.mat")
+RF_train = read(file, "fa") |> vec 
+close(file) 
 
 
 TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
 max_state = 10; # maximum number of configuration states to keep track of 
 H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
-Vb = 0.32;
-#sequence = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H);
-sequence = FISP2D(RF_train, TR, TE, max_state, TI)
+Vb = 0.032;
+sequence = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H);
+# sequence = FISP2D(RF_train, TR, TE, max_state, TI)
 
 # T₁ = LinRange(1.584-0.005, 1.584+0.005, 10) |> collect; # T₁ range 
 # T₂ = LinRange(0.165-0.0032, 0.165+0.0032, 10) |> collect; # T₂ range
@@ -44,9 +44,17 @@ println("Length parameters: $(length(parameters))")
 # calls are significantly faster
 
 println("Current number of threads: $(Threads.nthreads())")
-@time dictionary = simulate_magnetization(CPUThreads(), sequence, parameters);
 
+cu_sequence = sequence |> f32 |> gpu;
+cu_parameters = parameters |> f32 |> gpu;
+
+# Remember, the first time a compilation procedure takes place which, especially
+# on GPU, can take some time.
+println("Active CUDA device:"); BlochSimulators.CUDA.device()
+
+@time dictionary = simulate_magnetization(CUDALibs(), cu_sequence, cu_parameters);
  
+
 x = 1:nTR;
 x_matrix = repeat(x, 1, length(parameters))
 y = dictionary;
@@ -60,4 +68,4 @@ plot2 = plot(x, RF_train, xlabel="TR", ylabel="Flip angle", title="Flip angle tr
 plot_combi = plot(title_plot, plot1, plot2, layout =  @layout([A{0.01h}; [B C]]), legend=false, size=(800, 600))
 
 
-savefig(plot_combi, string("C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/Data/", super_title, ".png"))
+# savefig(plot_combi, string("C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/Data/", super_title, ".png"))

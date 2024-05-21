@@ -62,14 +62,14 @@ Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulatio
 @inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}) where {T,Ns}
     #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
     #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
-    if nameof(typeof(sequence)) == ":FISP2DB"
-        println("FISP2DB sequence")
+    try 
         N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
-    else
-        println("FISP2D sequence")
-        N = 1
+        Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
+    catch  
+        println("H was not found, N set to 1 automatically")
+        N = 1 
+        Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
     end
-    Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
 end
 
 
@@ -81,13 +81,14 @@ Initialize an array of EPG states on a CUDA GPU to be used throughout the simula
 """
 @inline function initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
 
-    if nameof(typeof(sequence)) == ":FISP2DB"
-        println("FISP2DB sequence CUDA")
-        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
-    else
-        println("FISP2D sequence CUDA")
-        N = 1
+    try 
+        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR))) 
+    catch  
+        println("H was not found, N set to 1 automatically")
+        N = 1 
     end
+
+    
     # request shared memory in which configuration states are stored
     # (all threads request for the entire threadblock)
 
@@ -252,7 +253,7 @@ Rotate and decay combined
 
     F₊(Ω) .*= E₂ * eⁱᶿ
     F̄₋(Ω) .*= E₂ * conj(eⁱᶿ)
-    Z(Ω) .*= E₁
+    Z(Ω) .*= complex(E₁)
 end
 
 # Regrowth
@@ -287,7 +288,7 @@ end
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
 
-    for i = 1:size(F̄₋, 1)
+    for i = 1:size(F̄₋, 1)-1
         for j in 1:size(F̄₋, 2)
             @inbounds F̄₋[i, j] = F̄₋[i+1, j]
         end
