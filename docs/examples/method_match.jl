@@ -45,8 +45,8 @@ println("Active CUDA device:"); BlochSimulators.CUDA.device()
 
 #Creating dictionary with old FISP2D sequence
 #
-T₁ = .1:.1:3 #T1 range for old simulation
-T₂ = .01:.01:1 #T2 range for old simulation
+T₁ = .1:.01:3 #T1 range for old simulation
+T₂ = .01:.01:2 #T2 range for old simulation
 
 sequence = FISP2D(RF_train, TR, TE, max_state, TI);
 
