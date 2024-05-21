@@ -69,7 +69,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
         invert!(Ω)
         decay!(Ω, E₁ᵀᴵ, E₂ᵀᴵ)
         regrowth!(Ω, E₁ᵀᴵ)
-        z_body_track = Z(Ω)[0,0]
+        z_body_track = Z(Ω)[1,1]
 
         for (TR,RF) in enumerate(sequence.RF_train)
 
