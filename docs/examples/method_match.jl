@@ -26,7 +26,7 @@ Vb = 0.32;
 sequence_blood = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
 
 T₁ = 1.9844 #exact T1 value for blood
-T₂ = 275.0 #exact T2 value for blood
+T₂ = 0.275 #exact T2 value for blood
 
 parameters_blood = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters_blood = filter(p -> (p.T₁ > p.T₂), parameters_blood); # remove pairs with T₂ ≤ T₁
