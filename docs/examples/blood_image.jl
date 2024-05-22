@@ -37,7 +37,7 @@ println("Active CUDA device:"); BlochSimulators.CUDA.device()
 
 @time simulation_old = simulate_magnetization(CUDALibs(), cu_sequence, cu_parameters);
 
-simulation_range = LinRange(0.1, 0.001, 5)
+simulation_range = LinRange(0.5, 0.01, 5)
 simulation_new = zeros(nTR, length(simulation_range))
 
 for (i , value) in enumerate(simulation_range)
@@ -47,8 +47,13 @@ for (i , value) in enumerate(simulation_range)
     @time simulation = simulate_magnetization(CUDALibs(), cu_sequence, cu_parameters);
     simulation_new[:, i] = simulation[:,1]
 end
+p = plot()
+for (i, value) in enumerate(simulation_range)
+    value = round(value, digits = 3)
+    plot!(p, simulation_new[:,i], label = "Vᵦ = $value", color = "red")
+    annotate!(p, 150, simulation_new[350,i], text("Vᵦ = $value", 8, :left, color = "red"))
+end
+plot!(p, simulation_old[:,1], label = "Vᵦ = 0", color = "Green", title = "MR signal simulations from gradient spoiled \n sequence using the new implementation \n including velocities (red) and the old implementation \n without velocities (green) \n", xlabel = "TR", ylabel = "Magnetization signal", legend = :topright, size = (800, 600))
 
-
-
-plot2 = plot(simulation_new, Label = "New Method", color = :red);
-plot3 = plot!(simulation_old, Label = "Old Method", color = :green)
+rftrain = plot()
+plot!(rftrain, RF_train, title = "RF train", xlabel = "TR", ylabel = "Flip angle", size = (800, 600), legend=false)
