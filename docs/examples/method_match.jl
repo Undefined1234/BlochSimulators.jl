@@ -11,6 +11,7 @@ using MAT
 using Plots
 using Statistics
 using StatsBase
+using FastGaussQuadrature
 
 nTR = 1120; # nr of TRs used in the simulation
 # RF_train = LinRange(1,90,nTR) |> collect; # flip angle train
@@ -18,15 +19,15 @@ file = matopen("docs/examples/FA_insync.mat")
 RF_train = read(file, "fa") |> vec 
 close(file) 
 
-TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time, echo time, inversion delay, blood velocity
+TR,TE,TI= 0.0089, 0.005, 0.100; # repetition time [s], echo time [s], inversion delay [s]
 max_state = 10; # maximum number of configuration states to keep track of 
 H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
 Vb = 0.32;
 sequence_blood = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
 
-T₁ = 1.9844 #exact T1 value for blood
-T₂ = 0.275 #exact T2 value for blood
+T₁ = 1.9844 #exact T1 value for blood [s]
+T₂ = 0.275 #exact T2 value for blood [s]
 
 parameters_blood = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters_blood = filter(p -> (p.T₁ > p.T₂), parameters_blood); # remove pairs with T₂ ≤ T₁
@@ -45,8 +46,8 @@ println("Active CUDA device:"); BlochSimulators.CUDA.device()
 
 #Creating dictionary with old FISP2D sequence
 #
-T₁ = .01:.01:4 #T1 range for old simulation
-T₂ = .01:.01:4#T2 range for old simulation
+T₁ = .01:.01:5 #T1 range for old simulation
+T₂ = .01:.01:5 #T2 range for old simulation
 
 sequence = FISP2D(RF_train, TR, TE, max_state, TI);
 
@@ -79,6 +80,6 @@ T2 = parameters[index[1]][2]*1000
 x = 1:nTR;
 y_blood = blood_sim;
 y_sim = dictionary[:,index[1]];
-plot1 = plot(x, [y_blood y_sim], labels=["Blood (FISP2DB)" "Simulation (FISP2D)"], xlabel="TR", ylabel="Magnetization signal", size=(800,600), legend=:topright, color=[:red :blue], title= "FISP2DB fitting on FISP2D dictionary")
+plot1 = plot(x, [y_blood y_sim], labels=["FISP2DB blood simulation" "FISP2D best match"], xlabel="TR", ylabel="Magnetization signal", size=(800,600), legend=:topright, color=[:red :blue], title= "FISP2DB fitting on FISP2D dictionary")
 println("Max correlation: $val with T1: $T1 ms and T2: $T2 ms")
 # savefig(plot1, "C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/GPU.png")

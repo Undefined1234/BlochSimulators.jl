@@ -9,9 +9,7 @@ for all threads within a block simultaneously. We then take a `@view` and wrap i
 Without the `SizedArray`, the type would be long and unreadable. By wrapping, we can then
 simply dispatch on a `SizedArray` instead.
 """
-#const EPGStates = Union{MArray{Tuple{3, 10, 4}}, SizedArray{Tuple{3, 10, 4}}}
-const EPGStates = Any
-
+const EPGStates = Union{MMatrix{3}, SizedMatrix{3}}
 
 """
     F₊(Ω)
@@ -19,23 +17,21 @@ const EPGStates = Any
 View into the first row of the configuration state matrix `Ω`,
 corresponding to the `F₊` states.
 """
-F₊(Ω) = view(Ω, 1, :, :)
-
-
+F₊(Ω) = OffsetVector(view(Ω,1,:), 0:size(Ω,2)-1)
 """
     F̄₋(Ω)
 
 View into the second row of the configuration state matrix `Ω`,
 corresponding to the `F̄₋` states.
 """
-F̄₋(Ω) = view(Ω, 2, :, :)
+F̄₋(Ω) = OffsetVector(view(Ω,2,:), 0:size(Ω,2)-1)
 """
     Z(Ω)
 
 View into the third row of the configuration state matrix `Ω`,
 corresponding to the `Z` states.
 """
-Z(Ω) = view(Ω, 3, :, :)
+Z(Ω) = OffsetVector(view(Ω,3,:), 0:size(Ω,2)-1)
 
 ## KERNELS ###
 
@@ -57,22 +53,9 @@ and for these sequences a method needs to be added to this function.
 
 Initialize an `MMatrix` of EPG states on CPU to be used throughout the simulation.
 """
-
-
 @inline function initialize_states(::AbstractResource, sequence::EPGSimulator{T,Ns}) where {T,Ns}
-    #Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
-    #Ω = @SArray zeros(Ω_eltype(sequence),3,Ns,N)
-    try 
-        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
-        Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
-    catch  
-        println("H was not found, N set to 1 automatically")
-        N = 1 
-        Ω = zeros(Ω_eltype(sequence), 3, Ns, N)
-    end
+    Ω = @MMatrix zeros(Ω_eltype(sequence),3,Ns)
 end
-
-
 
 """
     initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
@@ -80,25 +63,15 @@ end
 Initialize an array of EPG states on a CUDA GPU to be used throughout the simulation.
 """
 @inline function initialize_states(::CUDALibs, sequence::EPGSimulator{T,Ns}) where {T,Ns}
-
-    try 
-        N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR))) 
-    catch  
-        N = 1 
-    end
-
-    
     # request shared memory in which configuration states are stored
     # (all threads request for the entire threadblock)
-
     Ω_shared = CUDA.CuStaticSharedArray(Ω_eltype(sequence), (3, Ns, THREADS_PER_BLOCK))
     # get view for configuration states of this thread's voxel
     # note that this function gets called inside a CUDA kernel
     # so it has has access to threadIdx
-    Ω_view = view(Ω_shared, :, :, threadIdx().x)
+    Ω_view = view(Ω_shared,:,:,threadIdx().x)
     # wrap in a SizedMatrix
-    Ω = SizedMatrix{3,Ns,N}(Ω_view)
-    println("Matrix size, ", size(Ω))
+    Ω = SizedMatrix{3,Ns}(Ω_view)
     return Ω
 end
 
@@ -111,21 +84,7 @@ Set all components of all states to 0, except the Z-component of the 0th state w
 """
 @inline function initial_conditions!(Ω::EPGStates)
     @. Ω = 0
-    @inbounds Z(Ω)[begin, :] .= 1
-    return nothing
-end
-
-"""
-    full_blood_compensation!()
-
-Set all F+ F- components to 0. This is used to simulate the effect of full blood compensation.
-This function is used in the FISP2DB sequence. Only if the blood passes the slice completely. 
-It is assumed that the signals from earlier blood are not measureable anymore and so the F+ and F- 
-components can be set to 0.
-"""
-@inline function full_blood_compensation!(Ω::EPGStates)
-    F₊(Ω) .= 0
-    F̄₋(Ω) .= 0
+    Z(Ω)[0] = 1
     return nothing
 end
 
@@ -137,7 +96,7 @@ end
 Mixing of states due to RF pulse. Magnitude of RF is the flip angle in degrees.
 Phase of RF is the phase of the pulse. If RF is real, the computations simplify a little bit.
 """
-@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where {T<:Union{Complex,Quantity{<:Complex}}}
+@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where T<:Union{Complex, Quantity{<:Complex}}
 
     # angle of RF pulse, convert from degrees to radians
     α = deg2rad(abs(RF))
@@ -145,42 +104,28 @@ Phase of RF is the phase of the pulse. If RF is real, the computations simplify 
     # phase of RF pulse
     φ = angle(RF)
 
-    x = α / 2
+    x = α/2
     sinx, cosx = sincos(x)
     sin²x, cos²x = sinx^2, cosx^2
     # double angle formula
-    sinα, cosα = 2 * sinx * cosx, 2 * cos²x - one(α)
+    sinα, cosα = 2*sinx*cosx, 2*cos²x - one(α)
     # phase stuff
     sinφ, cosφ = sincos(φ)
     # again double angle formula
-    sin2φ, cos2φ = 2 * sinφ * cosφ, 2 * cosφ^2 - one(α)
+    sin2φ, cos2φ = 2*sinφ*cosφ, 2*cosφ^2 - one(α)
     # complex exponentials
-    ℯⁱᵠ = complex(cosφ, sinφ)
+    ℯⁱᵠ  = complex(cosφ,  sinφ)
     ℯ²ⁱᵠ = complex(cos2φ, sin2φ)
-    ℯ⁻ⁱᵠ = conj(ℯⁱᵠ)
+    ℯ⁻ⁱᵠ  = conj(ℯⁱᵠ)
     ℯ⁻²ⁱᵠ = conj(ℯ²ⁱᵠ)
     # compute individual components of rotation matrix
     R₁₁, R₁₂, R₁₃ = cos²x, ℯ²ⁱᵠ * sin²x, -im * ℯⁱᵠ * sinα
     R₂₁, R₂₂, R₂₃ = ℯ⁻²ⁱᵠ * sin²x, cos²x, 1im * ℯ⁻ⁱᵠ * sinα #im gives issues with CUDA profiling, 1im works
     R₃₁, R₃₂, R₃₃ = -im * ℯ⁻ⁱᵠ * sinα / 2, 1im * ℯⁱᵠ * sinα / 2, cosα
     # assemble static matrix
-    #R = SArray{Tuple{3,3}}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
-    # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
+    R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     # apply rotation matrix to each state
-    for subvox in axes(Ω, 3)
-        for col in axes(Ω, 2)
-            Ωₛ = @view Ω[:, col, subvox]
-
-            tmp11 = R₁₁ * Ωₛ[1] + R₁₂ * Ωₛ[2] + R₁₃ * Ωₛ[3]
-            tmp21 = R₂₁ * Ωₛ[1] + R₂₂ * Ωₛ[2] + R₂₃ * Ωₛ[3]
-            tmp31 = R₃₁ * Ωₛ[1] + R₃₂ * Ωₛ[2] + R₃₃ * Ωₛ[3]
-
-            # overwrite Ωₛ with the new values
-            Ωₛ[1] = tmp11
-            Ωₛ[2] = tmp21
-            Ωₛ[3] = tmp31
-        end 
-    end
+    Ω .= R * Ω
     return nothing
 end
 """
@@ -188,38 +133,25 @@ end
 
 If RF is real, the calculations simplify (and probably Ω is real too, reducing memory (access) requirements).
 """
-@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where {T<:Union{Real,Quantity{<:Real}}}
+@inline function excite!(Ω::EPGStates, RF::T, p::AbstractTissueParameters) where T<:Union{Real, Quantity{<:Real}}
 
     # angle of RF pulse, convert from degrees to radians
     α = deg2rad(RF)
     hasB₁(p) && (α *= p.B₁)
-    x = α / 2
+    x = α/2
     sinx, cosx = sincos(x)
     sin²x, cos²x = sinx^2, cosx^2
     # double angle formula
-    sinα, cosα = 2 * sinx * cosx, 2 * cos²x - one(α)
+    sinα, cosα = 2*sinx*cosx, 2*cos²x - one(α)
     # compute individual components of rotation matrix
     R₁₁, R₁₂, R₁₃ = cos²x, -sin²x, -sinα
     R₂₁, R₂₂, R₂₃ = -sin²x, cos²x, -sinα
     R₃₁, R₃₂, R₃₃ = sinα / 2, sinα / 2, cosα
     # assemble static matrix
-    # R = SMatrix{3,3}(R₁₁, R₂₁, R₃₁, R₁₂, R₂₂, R₃₂, R₁₃, R₂₃, R₃₃)
-    # R = [R₁₁ R₁₂ R₁₃; R₂₁ R₂₂ R₂₃; R₃₁ R₃₂ R₃₃]
+    R = SMatrix{3,3}(R₁₁,R₂₁,R₃₁,R₁₂,R₂₂,R₃₂,R₁₃,R₂₃,R₃₃)
     # apply rotation matrix to each state
-    for subvox in axes(Ω, 3)
-        for col in axes(Ω, 2)
-            Ωₛ = @view Ω[:, col, subvox]
+    Ω .= R * Ω
 
-            tmp11 = R₁₁ * Ωₛ[1] + R₁₂ * Ωₛ[2] + R₁₃ * Ωₛ[3]
-            tmp21 = R₂₁ * Ωₛ[1] + R₂₂ * Ωₛ[2] + R₂₃ * Ωₛ[3]
-            tmp31 = R₃₁ * Ωₛ[1] + R₃₂ * Ωₛ[2] + R₃₃ * Ωₛ[3]
-
-            # overwrite Ωₛ with the new values
-            Ωₛ[1] = tmp11
-            Ωₛ[2] = tmp21
-            Ωₛ[3] = tmp31
-        end 
-    end
     return nothing
 end
 
@@ -228,8 +160,8 @@ end
 
 Rotate `F₊` and `F̄₋` states under the influence of `eⁱᶿ = exp(i * ΔB₀ * Δt)`
 """
-@inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where {T}
-    @. Ω[1:2, :, :] *= (eⁱᶿ, conj(eⁱᶿ))
+@inline function rotate!(Ω::EPGStates, eⁱᶿ::T) where T
+    @. Ω[1:2,:] *= (eⁱᶿ,conj(eⁱᶿ))
 end
 
 # Decay
@@ -240,7 +172,7 @@ end
 T₂ decay for F-components, T₁ decay for `Z`-component of each state.
 """
 @inline function decay!(Ω::EPGStates, E₁, E₂)
-    Ω .*= (E₂, E₂, E₁)
+    @. Ω *= (E₂, E₂, E₁)
 end
 
 """
@@ -249,10 +181,7 @@ end
 Rotate and decay combined
 """
 @inline function rotate_decay!(Ω::EPGStates, E₁, E₂, eⁱᶿ)
-
-    F₊(Ω) .*= E₂ * eⁱᶿ
-    F̄₋(Ω) .*= E₂ * conj(eⁱᶿ)
-    Z(Ω) .*= complex(E₁)
+    @. Ω *= (E₂*eⁱᶿ, E₂*conj(eⁱᶿ), complex(E₁))
 end
 
 # Regrowth
@@ -263,13 +192,8 @@ end
 T₁ regrowth for Z-component of 0th order state.
 """
 @inline function regrowth!(Ω::EPGStates, E₁)
-
-    Ωᶻ = Z(Ω)
-    for i = axes(Ω, 3)
-        @inbounds Ωᶻ[begin, i] += (1 - E₁)
-    end
+    Z(Ω)[0] += (1 - E₁)
 end
-
 
 # Dephasing
 
@@ -286,31 +210,20 @@ end
 
 # shift down the F- states, set highest state to 0
 @inline function shift_down!(F̄₋)
-
-    for i = 1:size(F̄₋, 1)-1
-        for j in 1:size(F̄₋, 2)
-            @inbounds F̄₋[i, j] = F̄₋[i+1, j]
-        end
+    for i = 0:lastindex(F̄₋)-1
+        @inbounds F̄₋[i] = F̄₋[i+1]
     end
-
-    for j in 1:size(F̄₋, 2)
-        @inbounds F̄₋[end, j] = 0
-    end
+    @inbounds F̄₋[end] = 0
 end
 
 # shift up the F₊ states and let F₊[0] be conj(F₋[0])
 @inline function shift_up!(F₊, F̄₋)
-
-    for i = size(F₊, 1):-1:2
-        for j in 1:size(F₊, 2)
-            @inbounds F₊[i, j] = F₊[i-1, j]
-        end
+    for i = lastindex(F₊):-1:1
+        @inbounds F₊[i] = F₊[i-1]
     end
-
-    for j in 1:size(F₊, 2)
-        @inbounds F₊[1, j] = conj(F̄₋[1, j])
-    end
+    @inbounds F₊[0] = conj(F̄₋[0])
 end
+
 # Invert
 
 """
@@ -358,22 +271,6 @@ The `+=` is needed for 2D sequences where slice profile is taken into account.
     @inbounds output[index] += F₊(Ω)[0]
 end
 
-@inline function sample_transverse_conj!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
-    @inbounds output[index] += F₋(Ω)[0]
-end
-"""
-    sample_transverse"_V2!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
-
-Sample the measurable transverse magnetization, that is, the `F₊` component of the 0th state.
-The `+=` is needed for 2D sequences where slice profile is taken into account.
-
-For blood flow sequences all F₊ states from the 0th order are summed and scaled by the
-partitioning amount (N)
-"""
-@inline function sample_transverse_V2!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
-    @inbounds output[index] += sum((@view F₊(Ω)[1, :])) / size(Ω, 3)
-end
-
 """
     sample_Ω!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
 
@@ -383,31 +280,3 @@ for 2D sequences where slice profile is taken into account.
 @inline function sample_Ω!(output, index::Union{Integer,CartesianIndex}, Ω::EPGStates)
     @inbounds output[index] .+= Ω
 end
-
-@inline function blood_shift!(Ω::EPGStates, z)
-
-    z = min(z, 1)
-    for s = lastindex(Ω, 3):-1:2
-
-        for i in axes(Ω, 1)
-            for j in axes(Ω, 2)
-                @inbounds Ω[i, j, s] = Ω[i, j, s-1]
-            end
-        end
-
-        # @inbounds Ω[:, :, i] .= Ω[:, :, i-1] #Move dimensions forward
-        # (@view Ω[:, :, i]) .= (@view Ω[:, :, i-1])
-    end
-
-    # Initialize new dimension
-    # Ω[:, :, 1] .= 0 
-    for i in axes(Ω, 1)
-        for j in axes(Ω, 2)
-            @inbounds Ω[i, j, 1] = 0
-        end
-    end
-
-    # Initialize Z component new dimension
-    Ω[3, 1, 1] = z
-end
-

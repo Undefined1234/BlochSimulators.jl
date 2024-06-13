@@ -11,6 +11,7 @@ using MAT
 using Plots
 using Statistics
 using StatsBase
+using FastGaussQuadrature
 
 nTR = 1120; # nr of TRs used in the simulation
 # RF_train = LinRange(1,90,nTR) |> collect; # flip angle train
@@ -23,56 +24,39 @@ max_state = 10; # maximum number of configuration states to keep track of
 H = 0.004*3; #Slice thickness in m
 # V = 0.328; # Blood velocity in m/s
 Vb = 0.32;
-sequence_blood = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
 
-T₁ = 1.584 #exact T1 value for blood
-T₂ = 0.165 #exact T2 value for blood
+sym_FISP2DB = FISP2DB(RF_train, TR, TE, max_state, TI, Vb, H); # FISP2DB sequence for blood
+sym_FISP2D = FISP2D(RF_train, TR, TE, max_state, TI); # FISP2D sequence for dictionary
 
-parameters_blood = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
-parameters_blood = filter(p -> (p.T₁ > p.T₂), parameters_blood); # remove pairs with T₂ ≤ T₁
-
-println("Length parameters: $(length(parameters_blood))")
-
-cu_sequence_blood = sequence_blood |> f32 |> gpu;
-cu_parameters_blood = parameters_blood |> f32 |> gpu;
-
-# Remember, the first time a compilation procedure takes place which, especially
-# on GPU, can take some time.
-println("Active CUDA device:"); BlochSimulators.CUDA.device()
-
-@time blood_sim = simulate_magnetization(CUDALibs(), cu_sequence_blood, cu_parameters_blood);
-# Call the pre-compiled version
-
-#Creating dictionary with old FISP2D sequence
-#
-T₁ = 1.584 #exact T1 value for blood
-T₂ = 0.165 #exact T2 value for blood
-
-sequence = FISP2D(RF_train, TR, TE, max_state, TI);
+T₁ = 2.0855 #exact T1 value for blood
+T₂ = 0.275 #exact T2 value for blood
 
 parameters = map(T₁T₂, Iterators.product(T₁,T₂)); # produce all parameter pairs
 parameters = filter(p -> (p.T₁ > p.T₂), parameters); # remove pairs with T₂ ≤ T₁
 
 println("Length parameters: $(length(parameters))")
 
-cu_sequence = sequence |> f32 |> gpu;
+cu_sequence_FISP2D = sym_FISP2D |> f32 |> gpu;
+cu_sequence_FISP2DB = sym_FISP2DB |> f32 |> gpu;
 cu_parameters = parameters |> f32 |> gpu;
 
 # Remember, the first time a compilation procedure takes place which, especially
 # on GPU, can take some time.
 println("Active CUDA device:"); BlochSimulators.CUDA.device()
 
-@time dictionary = simulate_magnetization(CUDALibs(), cu_sequence, cu_parameters);
+@time FISP2D_path = simulate_magnetization(CUDALibs(), cu_sequence_FISP2D, cu_parameters);
+@time FISP2DB_path = simulate_magnetization(CUDALibs(), cu_sequence_FISP2DB, cu_parameters);
 # Call the pre-compiled version
 
 
 #Evaluation 
-#
+d = FISP2D_path .- FISP2DB_path
+d_sum_abs = sum(abs.(d))
 
-x = 1:nTR;
-y_blood = blood_sim;
-y_sim = dictionary;
-L2 = sqrt(sum((y_blood .- y_sim).^2))
-plot1 = plot(x, [y_blood y_sim], labels=["Blood" "Simulation"])
-plot(plot1)
+p = plot()
+plot!(p, FISP2D_path, label = "FISP2D", color = "red")
+plot!(p, FISP2DB_path, label = "FISP2DB", color = "blue")
+plot!(p, d, label = "Difference", color = "green", title = "MR signal simulations for simulation 3", ylabel = "Magnetizaion signal", xlabel = "TR")
+
+
 # savefig(plot1, "C:/Users/20212059/OneDrive - TU Eindhoven/Documents/School/BEP/GPU.png")

@@ -95,23 +95,26 @@ function simulate_magnetization(::CUDALibs, sequence::EPGSimulator{T,Ns}, parame
 
     try 
         N = Int(ceil(sequence.H / (sequence.Vᵦ * sequence.TR)))
+        node, gauss = gausslegendre(N)
+        gauss = CUDA.CuArray(gauss)./2
         num_voxels = length(parameters)
         states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)
-        return simulate_magnetization(CUDALibs(), sequence, parameters, states)
+        return simulate_magnetization(CUDALibs(), sequence, parameters, states, gauss)
     catch  
         N = 1 
         num_voxels = length(parameters)
+        gauss = CUDA.ones(N)*(1/N)
         states = CUDA.zeros(Ω_eltype(sequence), 3, Ns, N, num_voxels)
-        return simulate_magnetization(CUDALibs(), sequence, parameters, states)
+        return simulate_magnetization(CUDALibs(), sequence, parameters, states, gauss)
     end
 
 end
 
-function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray, states)
+function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray, states, gauss)
 
     # intialize array to store magnetization for each voxel
     output = _allocate_output(CUDALibs(), sequence, parameters)
-
+    gaussweights = gauss
     # compute nr of threadblocks to be used on GPU
     # threads per block hardcoded for now
     nr_voxels = length(parameters)
@@ -122,15 +125,13 @@ function simulate_magnetization(::CUDALibs, sequence, parameters::CuArray, state
 
         # get voxel index
         voxel = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-
         # initialize state that gets updated during time integration
         # states = initialize_states(CUDALibs(), sequence)
         if voxel <= length(parameters)
             Ω = view(states, :, :, :, voxel)
             # @inbounds Ω = states[voxels]
-
             #     # run simulation for voxel
-            simulate_magnetization!(view(output, :, voxel), sequence, Ω, parameters[voxel])
+            simulate_magnetization!(view(output, :, voxel), sequence, Ω, parameters[voxel], gaussweights)
         end
 
         return nothing

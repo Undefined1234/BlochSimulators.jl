@@ -12,6 +12,7 @@ module BlochSimulators
     using StaticArrays
     using Unitful
     using Unitless
+    using FastGaussQuadrature
 
     import Adapt: adapt, adapt_storage, @adapt_structure # to allow custom Structs of non-isbits type to be used on gpu
     import Functors: @functor, functor, fmap, isleaf

@@ -48,12 +48,11 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 Ω_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
 
 # Sequence implementation
-@inline function simulate_magnetization!(magnetization, sequence::FISP2DB, Ω, p::AbstractTissueParameters)
+@inline function simulate_magnetization!(magnetization, sequence::FISP2DB, Ω, p::AbstractTissueParameters, gweight)
 
     T₁, T₂ = p.T₁, p.T₂
     TR, TE, TI = sequence.TR, sequence.TE, sequence.TI
-
-
+    
 
     E₁ᵀᴱ, E₂ᵀᴱ = E₁(Ω, TE, T₁),    E₂(Ω, TE, T₂)
     E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ = E₁(Ω, TR-TE, T₁), E₂(Ω, TR-TE, T₂)
@@ -79,7 +78,7 @@ output_eltype(sequence::FISP2DB) = unitless(eltype(sequence.RF_train))
                 rotate_decay!(Ω, E₁ᵀᴱ, E₂ᵀᴱ, eⁱᴮ⁰⁽ᵀᴱ⁾)
         #         regrowth!(Ω, E₁ᵀᴱ)            # sample F₊[0]
                 z_body_track += (1-E₁ᵀᴱ)
-                 sample_transverse_V2!(magnetization, TR, Ω)
+                sample_transverse_V2!(magnetization, TR, Ω, gweight)
         #         # T2 decay F states, T1 decay Z states, B0 rotation until next RF excitation
                 rotate_decay!(Ω, E₁ᵀᴿ⁻ᵀᴱ, E₂ᵀᴿ⁻ᵀᴱ, eⁱᴮ⁰⁽ᵀᴿ⁻ᵀᴱ⁾)
                 regrowth!(Ω, E₁ᵀᴿ⁻ᵀᴱ)
